@@ -28,6 +28,32 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
     useEffect(() => {
         if (!currentImageId) return
 
+        const checkStatus = async () => {
+            const { data } = await supabase
+                .from('generated_images')
+                .select('status, image_url')
+                .eq('id', currentImageId)
+                .single()
+
+            if (data?.image_url && data?.status?.toLowerCase() === 'generated') {
+                setGeneratedImageUrl(data.image_url)
+                setIsGenerating(false)
+                setCurrentImageId(null)
+                router.refresh()
+                return true // Done
+            } else if (data?.status === 'failed') {
+                setIsGenerating(false)
+                setCurrentImageId(null)
+                alert('Generation failed.')
+                return true // Done
+            }
+            return false // Keep waiting
+        }
+
+        // 1. Check Immediately (in case it finished fast)
+        checkStatus()
+
+        // 2. Realtime Subscription
         const channel = supabase
             .channel('schema-db-changes')
             .on(
@@ -39,23 +65,21 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                     filter: `id=eq.${currentImageId}`,
                 },
                 (payload) => {
-                    const newData = payload.new as any
-                    if (newData.status === 'Generated' && newData.image_url) {
-                        setGeneratedImageUrl(newData.image_url)
-                        setIsGenerating(false)
-                        setCurrentImageId(null)
-                        router.refresh()
-                    } else if (newData.status === 'failed') {
-                        setIsGenerating(false)
-                        setCurrentImageId(null)
-                        alert('Generation failed.')
-                    }
+                    // Realtime update received, check status
+                    checkStatus()
                 }
             )
             .subscribe()
 
+        // 3. Polling Fallback (every 2s)
+        const interval = setInterval(async () => {
+            const isDone = await checkStatus()
+            if (isDone) clearInterval(interval)
+        }, 2000)
+
         return () => {
             supabase.removeChannel(channel)
+            clearInterval(interval)
         }
     }, [currentImageId, supabase, router])
 
