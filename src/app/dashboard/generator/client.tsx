@@ -40,7 +40,7 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                 },
                 (payload) => {
                     const newData = payload.new as any
-                    if (newData.status === 'success' && newData.image_url) {
+                    if (newData.status === 'Generated' && newData.image_url) {
                         setGeneratedImageUrl(newData.image_url)
                         setIsGenerating(false)
                         setCurrentImageId(null)
