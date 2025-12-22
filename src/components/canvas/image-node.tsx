@@ -1,8 +1,15 @@
 import { memo } from 'react'
-import { Handle, Position } from 'reactflow'
-import { Bird } from 'lucide-react'
+import { Handle, Position, useReactFlow } from 'reactflow'
+import { Bird, X } from 'lucide-react'
 
-function ImageNode({ data }: { data: { label: string, src: string, type: 'layer' | 'background' } }) {
+function ImageNode({ id, data }: { id: string, data: { label: string, src: string, type: 'layer' | 'background' } }) {
+    const { setNodes } = useReactFlow()
+
+    const deleteNode = (e: React.MouseEvent) => {
+        e.stopPropagation() // Prevent selecting the node when clicking delete
+        setNodes((nodes) => nodes.filter((n) => n.id !== id))
+    }
+
     return (
         <div className="relative group">
             {/* Minimal Image Container */}
@@ -28,9 +35,18 @@ function ImageNode({ data }: { data: { label: string, src: string, type: 'layer'
                 {data.label}
             </div>
 
+            {/* Delete Button */}
+            <button
+                onClick={deleteNode}
+                className="absolute -top-3 -right-3 bg-red-500 hover:bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-30"
+                title="Remove"
+            >
+                <X className="w-3 h-3" />
+            </button>
+
             {/* Badge */}
             {data.type && (
-                <div className="absolute -top-2 -right-2 bg-zinc-800 text-zinc-400 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute -top-2 left-2 bg-zinc-800 text-zinc-400 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                     {data.type}
                 </div>
             )}

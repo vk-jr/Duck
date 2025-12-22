@@ -26,15 +26,8 @@ const nodeTypes = {
     imageNode: ImageNode,
 }
 
-const initialNodes: Node[] = [
-    {
-        id: '1',
-        position: { x: 250, y: 250 },
-        data: { label: 'Drop images here' },
-        type: 'input',
-        style: { background: '#333', color: '#fff', border: '1px solid #555', borderRadius: '8px', padding: '10px' }
-    },
-]
+// Start empty
+const initialNodes: Node[] = []
 
 interface GeneratedImage {
     id: string
@@ -119,6 +112,15 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
         <div className="flex h-[calc(100vh-6rem)] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-black/90 relative">
 
             <div className="flex-1 relative h-full order-1" ref={reactFlowWrapper}>
+                {/* Empty State Watermark */}
+                {nodes.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                        <div className="text-center opacity-20 select-none">
+                            <h1 className="text-6xl font-black text-white tracking-tighter mb-4">CANVAS</h1>
+                            <p className="text-xl font-light text-white uppercase tracking-[0.5em]">Drag Assets Here</p>
+                        </div>
+                    </div>
+                )}
                 {/* Canvas Toolbar */}
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
                     <div className="bg-black/50 backdrop-blur border border-white/10 rounded-lg p-1 flex">
@@ -167,8 +169,14 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
 
                     className="bg-gray-900/10"
                 >
-                    <Controls className="!bg-black/50 !border-white/10 !fill-white !rounded-lg !overflow-hidden [&>button]:!border-b-white/10 last:[&>button]:!border-b-0" />
-                    <MiniMap className="!bg-black/50 !border-white/10 !mr-auto !ml-4 !bottom-4 !left-auto" nodeColor="#EAB308" />
+                    <Controls className="!bg-black/50 !border-white/10 !fill-white !rounded-lg !overflow-hidden [&>button]:!border-b-white/10 last:[&>button]:!border-b-0 !left-4 !bottom-4 !transform-none" />
+                    <MiniMap
+                        className="!bg-black/80 !border-white/10 !rounded-lg !overflow-hidden !bottom-4 !right-4 !left-auto !m-0 shadow-xl"
+                        nodeColor="#EAB308"
+                        maskColor="rgba(0, 0, 0, 0.4)"
+                        zoomable
+                        pannable
+                    />
                     <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
                 </ReactFlow>
             </div>
