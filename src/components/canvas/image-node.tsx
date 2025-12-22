@@ -13,7 +13,7 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
     return (
         <div className="relative group">
             {/* Minimal Image Container */}
-            <div className="rounded-lg overflow-hidden border-2 border-transparent group-hover:border-primary/50 ring-1 ring-white/10 shadow-2xl transition-all bg-black">
+            <div className="rounded-lg overflow-hidden border-2 border-transparent group-hover:border-primary/50 ring-1 ring-white/10 shadow-none transition-none bg-black transform-gpu backface-hidden translate-z-0">
                 {!data.src ? (
                     <div className="p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-zinc-900">
                         <Bird className="w-8 h-8 opacity-20" />
@@ -31,7 +31,7 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
             </div>
 
             {/* Floating Label (Visible on Hover) */}
-            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 backdrop-blur px-3 py-1 rounded-full text-[10px] font-medium text-white border border-white/10 z-20 pointer-events-none">
+            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/90 px-3 py-1 rounded-full text-[10px] font-medium text-white border border-white/10 z-20 pointer-events-none">
                 {data.label}
             </div>
 
