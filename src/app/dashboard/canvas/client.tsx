@@ -18,7 +18,8 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import ImageNode from '@/components/canvas/image-node'
 import CanvasSidebar from '@/components/canvas/canvas-sidebar'
-import { Wand2, Save, Upload, MousePointer2 } from 'lucide-react'
+import { Wand2, Save, Upload, MousePointer2, PanelRightOpen } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // Register custom node types
 const nodeTypes = {
@@ -46,6 +47,8 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
     const [edges, setEdges, onEdgesChange] = useEdgesState([])
     const { project } = useReactFlow()
+
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
     const onConnect = useCallback(
         (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -113,10 +116,9 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
     )
 
     return (
-        <div className="flex h-[calc(100vh-6rem)] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-black/90">
-            <CanvasSidebar images={images} />
+        <div className="flex h-[calc(100vh-6rem)] w-full rounded-2xl overflow-hidden border border-white/10 shadow-2xl bg-black/90 relative">
 
-            <div className="flex-1 relative h-full" ref={reactFlowWrapper}>
+            <div className="flex-1 relative h-full order-1" ref={reactFlowWrapper}>
                 {/* Canvas Toolbar */}
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
                     <div className="bg-black/50 backdrop-blur border border-white/10 rounded-lg p-1 flex">
@@ -129,9 +131,16 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                     </div>
                 </div>
 
-                <div className="absolute top-4 right-4 z-10">
+                <div className="absolute top-4 right-4 z-10 flex gap-2">
                     <button className="flex items-center gap-2 bg-primary text-black font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm">
                         <Save className="w-4 h-4" /> Save Board
+                    </button>
+                    <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="bg-white/10 text-white p-2 rounded-lg hover:bg-white/20 transition-colors"
+                        title="Toggle Assets"
+                    >
+                        <PanelRightOpen className={cn("w-5 h-5 transition-transform", isSidebarOpen && "rotate-180")} />
                     </button>
                 </div>
 
@@ -144,13 +153,34 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                     onDragOver={onDragOver}
                     onDrop={onDrop}
                     nodeTypes={nodeTypes}
+
+                    minZoom={0.1}
+                    maxZoom={4}
                     fitView
-                    className="bg-black/90"
+
+                    panOnScroll={true}
+                    selectionOnDrag={true}
+                    panOnDrag={true}
+                    zoomOnScroll={true}
+                    zoomOnPinch={true}
+                    zoomOnDoubleClick={true}
+
+                    className="bg-gray-900/10"
                 >
-                    <Controls className="!bg-black/50 !border-white/10 !fill-white" />
-                    <MiniMap className="!bg-black/50 !border-white/10" nodeColor="#EAB308" />
-                    <Background variant={BackgroundVariant.Dots} gap={12} size={1} color="#333" />
+                    <Controls className="!bg-black/50 !border-white/10 !fill-white !rounded-lg !overflow-hidden [&>button]:!border-b-white/10 last:[&>button]:!border-b-0" />
+                    <MiniMap className="!bg-black/50 !border-white/10 !mr-auto !ml-4 !bottom-4 !left-auto" nodeColor="#EAB308" />
+                    <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
                 </ReactFlow>
+            </div>
+
+            {/* Right Sidebar */}
+            <div className={cn(
+                "order-2 border-l border-white/10 bg-black/40 transition-all duration-300 overflow-hidden",
+                isSidebarOpen ? "w-80" : "w-0 border-l-0"
+            )}>
+                <div className="w-80 h-full"> {/* Inner Constrained Width */}
+                    <CanvasSidebar images={images} />
+                </div>
             </div>
         </div>
     )
