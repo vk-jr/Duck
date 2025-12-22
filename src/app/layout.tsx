@@ -24,7 +24,7 @@ export default function RootLayout({
         className={`${jakarta.variable} font-sans antialiased bg-black text-white min-h-screen overflow-x-hidden`}
       >
         {/* Subtle persistent gradient background */}
-        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,_#1a1a1a_0%,_#000000_100%)] opacity-80" />
+        <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_0%,_#050505_0%,_#000000_100%)] opacity-50" />
         {children}
       </body>
     </html>
