@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Filter } from 'lucide-react'
+import { Filter, Download, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Brand {
@@ -29,6 +29,26 @@ export default function GalleryClient({
     const filteredImages = selectedBrandId === 'ALL'
         ? images
         : images.filter(img => img.brand_id === selectedBrandId)
+
+    const handleDownload = async (e: React.MouseEvent, imageUrl: string, prompt: string) => {
+        try {
+            e.preventDefault()
+            const response = await fetch(imageUrl)
+            const blob = await response.blob()
+            const url = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            const filename = `generated-${prompt.slice(0, 30).replace(/[^a-z0-9]/gi, '-').toLowerCase()}-${Date.now()}.png`
+            link.download = filename
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            window.URL.revokeObjectURL(url)
+        } catch (error) {
+            console.error('Download failed:', error)
+            window.open(imageUrl, '_blank')
+        }
+    }
 
     return (
         <div className="space-y-8">
@@ -97,14 +117,24 @@ export default function GalleryClient({
                                     <span className="text-xs text-white/50 bg-black/50 px-2 py-1 rounded">
                                         {brands.find(b => b.id === image.brand_id)?.name || 'Unknown Brand'}
                                     </span>
-                                    <a
-                                        href={image.image_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg backdrop-blur-sm transition-colors border border-white/10"
-                                    >
-                                        Open
-                                    </a>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={(e) => handleDownload(e, image.image_url, image.user_prompt)}
+                                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg backdrop-blur-sm transition-colors border border-white/10 flex items-center gap-1.5"
+                                        >
+                                            <Download className="w-3 h-3" />
+                                            Download
+                                        </button>
+                                        <a
+                                            href={image.image_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg backdrop-blur-sm transition-colors border border-white/10 flex items-center gap-1.5"
+                                        >
+                                            <ExternalLink className="w-3 h-3" />
+                                            Open
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
