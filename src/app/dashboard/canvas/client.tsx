@@ -21,7 +21,7 @@ import 'reactflow/dist/style.css'
 import ImageNode from '@/components/canvas/image-node'
 import CanvasSidebar from '@/components/canvas/canvas-sidebar'
 import MemoryPanel from '@/components/canvas/memory-panel'
-import { Wand2, Save, Upload, MousePointer2, PanelRightOpen, History } from 'lucide-react'
+import { Wand2, Save, Upload, MousePointer2, PanelRightOpen, History, Maximize, Minimize } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { processCanvasImage, saveCanvasState } from './actions'
 
@@ -59,6 +59,31 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
     const [selectedNode, setSelectedNode] = useState<Node | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
     const [lastSaved, setLastSaved] = useState<Date | null>(null)
+    const [isFullscreen, setIsFullscreen] = useState(false)
+
+    // Canvas Container Ref for Fullscreen
+    const canvasContainerRef = useRef<HTMLDivElement>(null)
+
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            canvasContainerRef.current?.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+            });
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    }
+
+    // Update state on fullscreen change
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement)
+        }
+        document.addEventListener('fullscreenchange', handleFullscreenChange)
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+    }, [])
 
     // Track pending generations: Map<layerId, { sourceNodeId: string, instruction: string }>
     const pendingGenerations = useRef<Map<string, { sourceNodeId: string, instruction: string }>>(new Map())
@@ -71,9 +96,37 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
 
         saveTimeoutRef.current = setTimeout(async () => {
             const viewport = getViewport()
+
+            // Sanitize nodes to remove non-serializable properties (like internal symbols)
+            const sanitizedNodes = nodes.map(node => ({
+                id: node.id,
+                type: node.type,
+                position: node.position,
+                data: node.data,
+                width: node.width,
+                height: node.height,
+                selected: node.selected,
+                positionAbsolute: node.positionAbsolute,
+                dragging: node.dragging
+            }))
+
+            const sanitizedEdges = edges.map(edge => ({
+                id: edge.id,
+                source: edge.source,
+                target: edge.target,
+                sourceHandle: edge.sourceHandle,
+                targetHandle: edge.targetHandle,
+                animated: edge.animated,
+                style: edge.style,
+                markerEnd: edge.markerEnd,
+                type: edge.type,
+                data: edge.data,
+                selected: edge.selected
+            }))
+
             const state = {
-                nodes,
-                edges,
+                nodes: JSON.parse(JSON.stringify(sanitizedNodes)), // Deep copy to ensure no refs
+                edges: JSON.parse(JSON.stringify(sanitizedEdges)),
                 viewport
             }
 
@@ -281,7 +334,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
     )
 
     return (
-        <div className="flex h-[calc(100vh-6rem)] w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-card relative">
+        <div ref={canvasContainerRef} className="flex h-[calc(100vh-6rem)] w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-card relative">
 
             <div className="flex-1 relative h-full order-1" ref={reactFlowWrapper}>
                 {/* Empty State Watermark */}
@@ -321,6 +374,13 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                 </div>
 
                 <div className="absolute top-4 right-4 z-10 flex gap-2">
+                    <button
+                        onClick={toggleFullscreen}
+                        className="bg-secondary/80 text-foreground p-2 rounded-lg hover:bg-accent transition-colors border border-border"
+                        title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                    >
+                        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                    </button>
                     <button className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm">
                         <Save className="w-4 h-4" /> Save Board
                     </button>
