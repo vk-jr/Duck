@@ -69,6 +69,7 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
         .from('image_layers')
         .insert({
             generated_image_id: imageId,
+            user_id: user.id, // Saving User ID as requested
             brand_id: activeBrandId,
             layer_type: type,
             layer_url: imageUrl, // Initializing with original URL to satisfy NOT NULL constraint
@@ -121,4 +122,86 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
         console.error('Canvas Webhook Error:', err)
         return { error: 'Failed to trigger processing engine.' }
     }
+}
+
+export async function saveCanvasState(state: any) {
+    // 1. Standard Client to Verify User
+    const standardSupabase = await createClient()
+    const { data: { user } } = await standardSupabase.auth.getUser()
+
+    if (!user) {
+        return { error: 'Unauthorized' }
+    }
+
+    // 2. Resolve Brand ID
+    const { data: profile } = await standardSupabase.from('profiles').select('brand_id').eq('id', user.id).single()
+    const brandId = profile?.brand_id
+
+    // 3. Use Service Role Client to Insert (Bypass RLS)
+    const supabase = await createServiceRoleClient()
+
+    const { data, error } = await supabase
+        .from('canvas_states')
+        .insert({
+            brand_id: brandId,
+            nodes: state.nodes,
+            edges: state.edges,
+            viewport: state.viewport,
+            updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+    if (error) {
+        console.error('Error saving canvas state:', error)
+        return { error: error.message }
+    }
+
+    return { success: true, data }
+}
+
+export async function getCanvasStates() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        return { error: 'Unauthorized' }
+    }
+
+    // Currently fetching all states for the user's brand or just by time
+    // Assuming RLS allows us to see our own/brand's rows
+    const { data, error } = await supabase
+        .from('canvas_states')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(20)
+
+    if (error) {
+        console.error('Error fetching canvas states:', error)
+        return { error: error.message }
+    }
+
+    return { success: true, data }
+}
+
+export async function deleteCanvasState(id: string) {
+    // 1. Verify User
+    const standardSupabase = await createClient()
+    const { data: { user } } = await standardSupabase.auth.getUser()
+
+    if (!user) return { error: 'Unauthorized' }
+
+    // 2. Use Service Role to Delete
+    const supabase = await createServiceRoleClient()
+
+    const { error } = await supabase
+        .from('canvas_states')
+        .delete()
+        .eq('id', id)
+
+    if (error) {
+        return { error: error.message }
+    }
+
+    return { success: true }
 }

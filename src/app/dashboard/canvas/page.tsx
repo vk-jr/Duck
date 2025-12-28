@@ -20,5 +20,13 @@ export default async function CanvasPage() {
         .eq('status', 'Generated')
         .order('created_at', { ascending: false })
 
-    return <CanvasClient images={images || []} />
+    // Fetch Generated Layers for Sidebar
+    const { data: layers } = await supabase
+        .from('image_layers')
+        .select('*')
+        .eq('user_id', user.id)
+        .or('status.eq.generated,status.eq.Generated')
+        .order('created_at', { ascending: false })
+
+    return <CanvasClient images={images || []} layers={layers || []} />
 }

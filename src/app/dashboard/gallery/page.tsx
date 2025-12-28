@@ -26,9 +26,18 @@ export default async function GalleryPage() {
         .eq('status', 'Generated')
         .order('created_at', { ascending: false })
 
+    // 3. Fetch Image Layers
+    const { data: layers } = await supabase
+        .from('image_layers')
+        .select('*')
+        .eq('user_id', user.id)
+        .or('status.eq.generated,status.eq.Generated')
+        .order('created_at', { ascending: false })
+
     return (
         <GalleryClient
             images={images || []}
+            layers={layers || []}
             brands={brands || []}
         />
     )

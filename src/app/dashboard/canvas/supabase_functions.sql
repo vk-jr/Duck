@@ -30,3 +30,19 @@ WHERE id = 'YOUR_LAYER_ID_HERE';
 -- ==============================================================================
 
 -- SELECT * FROM image_layers WHERE generated_image_id = 'SOME_IMAGE_ID';
+
+-- ==============================================================================
+-- 4. FIX CANVAS STATE CONSTRAINT
+-- Run this command to allow saving canvas states without linking to a specific generated image.
+-- ==============================================================================
+
+ALTER TABLE canvas_states ALTER COLUMN generated_image_id DROP NOT NULL;
+ALTER TABLE canvas_states ALTER COLUMN brand_id DROP NOT NULL;
+
+-- ==============================================================================
+-- 5. ADD USER ID FOR TRANSPARENCY
+-- Run this to track which user created the layer request.
+-- ==============================================================================
+
+ALTER TABLE image_layers 
+ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);

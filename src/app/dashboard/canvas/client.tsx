@@ -14,13 +14,16 @@ import ReactFlow, {
     Node,
     BackgroundVariant,
     ReactFlowProvider,
-    useReactFlow
+    useReactFlow,
+    Viewport
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 import ImageNode from '@/components/canvas/image-node'
 import CanvasSidebar from '@/components/canvas/canvas-sidebar'
-import { Wand2, Save, Upload, MousePointer2, PanelRightOpen } from 'lucide-react'
+import MemoryPanel from '@/components/canvas/memory-panel'
+import { Wand2, Save, Upload, MousePointer2, PanelRightOpen, History } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { processCanvasImage, saveCanvasState } from './actions'
 
 // Register custom node types
 const nodeTypes = {
@@ -36,31 +39,139 @@ interface GeneratedImage {
     user_prompt: string
 }
 
-import { processCanvasImage } from './actions'
+interface ImageLayer {
+    id: string
+    layer_url: string
+    layer_type: string
+    status: string
+    metadata: any
+    created_at: string
+}
 
-function CanvasContent({ images }: { images: GeneratedImage[] }) {
+function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: ImageLayer[] }) {
     const reactFlowWrapper = useRef<HTMLDivElement>(null)
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
     const [edges, setEdges, onEdgesChange] = useEdgesState([])
-    const { project } = useReactFlow()
+    const { project, getViewport, setViewport } = useReactFlow()
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+    const [isMemoryOpen, setIsMemoryOpen] = useState(false)
     const [selectedNode, setSelectedNode] = useState<Node | null>(null)
     const [isProcessing, setIsProcessing] = useState(false)
+    const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
     // Track pending generations: Map<layerId, { sourceNodeId: string, instruction: string }>
     const pendingGenerations = useRef<Map<string, { sourceNodeId: string, instruction: string }>>(new Map())
 
-    // Listen for Realtime Updates from Supabase
-    const { createClient } = require('@/lib/supabase/client') // Dynamic import to avoid SSR issues if any, or standard import
-    // Note regarding require: standard import is better. Let's rely on standard import at top of file, but since I am editing the function body, I will assume import is added or I should add it.
-    // Instead of require, I'll rely on the assumption I can add imports via multi_replace or just use what's available. 
-    // Wait, the user has `import { createClient }` available? No, I need to add that import.
-    // For this ReplaceFileContent, I will focus on the logic inside component.
-    // I will use `useEffect` to subscribe.
+    // Auto-save Logic
+    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-    // I need to import createClient. I'll do that in a separate step or assume I can do it here if I replace enough context.
-    // Let's replace the Logic block.
+    const triggerSave = useCallback(() => {
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+
+        saveTimeoutRef.current = setTimeout(async () => {
+            const viewport = getViewport()
+            const state = {
+                nodes,
+                edges,
+                viewport
+            }
+
+            // Only save if there's something to save
+            if (nodes.length === 0 && edges.length === 0) return
+
+            console.log('Auto-saving canvas state...')
+            const result = await saveCanvasState(state)
+            if (result.success) {
+                setLastSaved(new Date())
+            }
+        }, 2000) // Debounce 2s
+    }, [nodes, edges, getViewport])
+
+    // Trigger save on changes
+    useEffect(() => {
+        triggerSave()
+    }, [nodes, edges, triggerSave])
+
+    const onRestoreState = useCallback((state: any) => {
+        if (state.nodes) setNodes(state.nodes)
+        if (state.edges) setEdges(state.edges)
+        if (state.viewport) setViewport(state.viewport)
+        setIsMemoryOpen(false)
+    }, [setNodes, setEdges, setViewport])
+
+
+    // Listen for Realtime Updates from Supabase
+    React.useEffect(() => {
+        const supabase = createClient()
+        const channel = supabase
+            .channel('canvas-layer-updates')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'image_layers',
+                },
+                (payload: any) => {
+                    const layer = payload.new
+                    console.log('Received Layer Update:', layer)
+
+                    // Check for completion status (case-insensitive)
+                    if (layer.status?.toLowerCase() !== 'generated') return
+
+                    const pending = pendingGenerations.current.get(layer.id)
+                    if (pending) {
+                        const { sourceNodeId, instruction } = pending;
+
+                        // Find Source Node Position
+                        setNodes((currentNodes) => {
+                            // ... (logic remains same, just ensuring formatting)
+                            const sourceNode = currentNodes.find(n => n.id === sourceNodeId)
+                            if (!sourceNode) return currentNodes
+
+                            const newNodeId = `layer-${layer.id}`
+                            if (currentNodes.some(n => n.id === newNodeId)) return currentNodes
+
+                            const newPosition = {
+                                x: sourceNode.position.x + 400,
+                                y: sourceNode.position.y
+                            }
+
+                            const newNode: Node = {
+                                id: newNodeId,
+                                type: 'imageNode',
+                                position: newPosition,
+                                data: {
+                                    label: `Generated: ${instruction}`,
+                                    src: layer.layer_url,
+                                    type: 'generated',
+                                    imageId: layer.generated_image_id
+                                },
+                            }
+
+                            const newEdge: Edge = {
+                                id: `e-${sourceNodeId}-${newNodeId}`,
+                                source: sourceNodeId,
+                                target: newNodeId,
+                                animated: true,
+                                style: { stroke: '#EAB308', strokeWidth: 2 },
+                            }
+
+                            setEdges((eds) => addEdge(newEdge, eds))
+                            pendingGenerations.current.delete(layer.id)
+                            return [...currentNodes, newNode]
+                        })
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [setNodes, setEdges])
+
 
     const onConnect = useCallback(
         (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -105,89 +216,12 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
         } else {
             const layerId = result.layerId
             alert(`Sent to processing engine! Layer ID: ${layerId}`)
-            console.log('Layer ID:', layerId)
 
-            // Track this pending generation
             if (layerId) {
                 pendingGenerations.current.set(layerId, { sourceNodeId, instruction: text })
             }
         }
     }
-
-    // Real-time Subscription Effect
-    React.useEffect(() => {
-        const supabase = createClient()
-        const channel = supabase
-            .channel('canvas-layer-updates')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'image_layers',
-                    filter: `status=eq.generated`
-                },
-                (payload: any) => {
-                    const layer = payload.new
-                    console.log('Received Layer Update:', layer)
-
-                    const pending = pendingGenerations.current.get(layer.id)
-                    if (pending) {
-                        const { sourceNodeId, instruction } = pending;
-
-                        // Find Source Node Position
-                        setNodes((currentNodes) => {
-                            const sourceNode = currentNodes.find(n => n.id === sourceNodeId)
-                            if (!sourceNode) return currentNodes
-
-                            const newNodeId = `layer-${layer.id}`
-
-                            // Prevent duplicate nodes
-                            if (currentNodes.some(n => n.id === newNodeId)) return currentNodes
-
-                            // Calculate New Position (Shifted Right)
-                            const newPosition = {
-                                x: sourceNode.position.x + 400, // Shift to the right
-                                y: sourceNode.position.y
-                            }
-
-                            const newNode: Node = {
-                                id: newNodeId,
-                                type: 'imageNode',
-                                position: newPosition,
-                                data: {
-                                    label: `Generated: ${instruction}`,
-                                    src: layer.layer_url,
-                                    type: 'generated',
-                                    imageId: layer.generated_image_id
-                                },
-                            }
-
-                            // Connect Source -> New Node
-                            const newEdge: Edge = {
-                                id: `e-${sourceNodeId}-${newNodeId}`,
-                                source: sourceNodeId,
-                                target: newNodeId,
-                                animated: true,
-                                style: { stroke: '#EAB308', strokeWidth: 2 },
-                            }
-
-                            setEdges((eds) => addEdge(newEdge, eds))
-
-                            // Remove from pending
-                            pendingGenerations.current.delete(layer.id)
-
-                            return [...currentNodes, newNode]
-                        })
-                    }
-                }
-            )
-            .subscribe()
-
-        return () => {
-            supabase.removeChannel(channel)
-        }
-    }, [setNodes, setEdges]) // Re-subscribe if setters change (unlikely) or just once.
 
     const onDrop = useCallback(
         (event: React.DragEvent) => {
@@ -223,6 +257,7 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
             const imageUrl = event.dataTransfer.getData('application/imageurl')
             const prompt = event.dataTransfer.getData('application/prompt')
             const imageId = event.dataTransfer.getData('application/imageid')
+            const assetType = event.dataTransfer.getData('application/type') || 'asset'
 
             if (typeof type === 'undefined' || !type) {
                 return
@@ -237,7 +272,7 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                 id: `dnd-${Date.now()}`,
                 type,
                 position,
-                data: { label: prompt, src: imageUrl, type: 'asset', imageId },
+                data: { label: prompt, src: imageUrl, type: assetType, imageId },
             }
 
             setNodes((nds) => nds.concat(newNode))
@@ -258,6 +293,7 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                         </div>
                     </div>
                 )}
+
                 {/* Canvas Toolbar */}
                 <div className="absolute top-4 left-4 z-10 flex gap-2">
                     <div className="bg-secondary/80 backdrop-blur border border-border rounded-lg p-1 flex">
@@ -268,6 +304,20 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                             <Upload className="w-3 h-3" /> Upload
                         </div>
                     </div>
+                    {/* Memory/History Button */}
+                    <button
+                        onClick={() => setIsMemoryOpen(true)}
+                        className="bg-secondary/80 backdrop-blur border border-border rounded-lg p-2 text-foreground/80 hover:bg-accent transition-colors flex items-center gap-2"
+                        title="Canvas Memory"
+                    >
+                        <History className="w-4 h-4" />
+                        <span className="text-xs font-medium hidden md:block">Memory</span>
+                    </button>
+                    {lastSaved && (
+                        <div className="flex items-center text-[10px] text-muted-foreground bg-secondary/50 px-2 rounded-lg backdrop-blur">
+                            Saved
+                        </div>
+                    )}
                 </div>
 
                 <div className="absolute top-4 right-4 z-10 flex gap-2">
@@ -293,6 +343,7 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                     onDrop={onDrop}
                     onNodeClick={onNodeClick}
                     onPaneClick={onPaneClick}
+                    onMoveEnd={triggerSave} // Trigger save when viewport changes end
                     nodeTypes={nodeTypes}
 
                     minZoom={0.1}
@@ -318,6 +369,13 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                     />
                     <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#888" />
                 </ReactFlow>
+
+                {/* Memory Panel */}
+                <MemoryPanel
+                    isOpen={isMemoryOpen}
+                    onClose={() => setIsMemoryOpen(false)}
+                    onRestore={onRestoreState}
+                />
             </div>
 
             {/* Right Sidebar */}
@@ -331,6 +389,7 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                         selectedNode={selectedNode}
                         onProcess={handleProcess}
                         isProcessing={isProcessing}
+                        layers={layers}
                     />
                 </div>
             </div>
@@ -338,10 +397,12 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
     )
 }
 
-export default function CanvasClient({ images }: { images: GeneratedImage[] }) {
+export default function CanvasClient({ images, layers }: { images: GeneratedImage[], layers: ImageLayer[] }) {
     return (
-        <ReactFlowProvider>
-            <CanvasContent images={images} />
-        </ReactFlowProvider>
+        <div className="w-full h-full">
+            <ReactFlowProvider>
+                <CanvasContent images={images} layers={layers} />
+            </ReactFlowProvider>
+        </div>
     )
 }
