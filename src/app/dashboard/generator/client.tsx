@@ -124,7 +124,7 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="text-4xl md:text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-white/50 tracking-tighter"
+                    className="text-4xl md:text-6xl font-extrabold text-foreground tracking-tighter"
                 >
                     What shall we create?
                 </motion.h2>
@@ -143,14 +143,14 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
-                className="relative glass-card rounded-3xl p-3 transition-all shadow-2xl shadow-primary/5 focus-within:shadow-primary/20 focus-within:ring-1 focus-within:ring-primary/20 hover:shadow-primary/10 group"
+                className="relative bg-card rounded-3xl p-3 transition-all border border-border shadow-2xl focus-within:ring-1 focus-within:ring-primary/20 group"
             >
                 {/* Generation Type Selector */}
                 <div className="absolute top-4 right-4 z-10">
                     <select
                         name="generationType"
                         id="generationType"
-                        className="appearance-none bg-black/40 border border-white/10 text-white text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary hover:bg-white/10 cursor-pointer transition-colors"
+                        className="appearance-none bg-secondary border border-border text-foreground text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary hover:bg-accent cursor-pointer transition-colors"
                         defaultValue="generation"
                     >
                         <option value="generation">Generation</option>
@@ -163,12 +163,12 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                     onChange={(e) => setPrompt(e.target.value)}
                     disabled={isGenerating}
                     placeholder="Describe your vision... (e.g., 'A cinematic shot of a luxury watch on a marble surface')"
-                    className="w-full bg-transparent border-none text-white text-xl font-light placeholder:text-white/20 p-6 focus:ring-0 min-h-[160px] resize-none disabled:opacity-50"
+                    className="w-full bg-transparent border-none text-foreground text-xl font-light placeholder:text-muted-foreground p-6 focus:ring-0 min-h-[160px] resize-none disabled:opacity-50"
                 />
 
                 <div className="flex flex-col md:flex-row justify-between items-center px-4 pb-4 gap-4">
                     <div className="flex gap-4 items-center w-full md:w-auto">
-                        <button disabled={isGenerating} className="p-3 rounded-xl hover:bg-white/10 text-muted-foreground hover:text-white transition-colors" title="Upload Reference">
+                        <button disabled={isGenerating} className="p-3 rounded-xl hover:bg-accent text-muted-foreground hover:text-foreground transition-colors" title="Upload Reference">
                             <ImageIcon className="w-5 h-5" />
                         </button>
 
@@ -177,14 +177,14 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                             <select
                                 value={selectedBrandId}
                                 onChange={(e) => setSelectedBrandId(e.target.value)}
-                                className="appearance-none w-full md:w-auto bg-white/5 border border-white/10 text-white text-sm font-medium pl-4 pr-10 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary hover:bg-white/10 cursor-pointer transition-colors"
+                                className="appearance-none w-full md:w-auto bg-secondary border border-border text-foreground text-sm font-medium pl-4 pr-10 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary hover:bg-accent cursor-pointer transition-colors"
                             >
                                 {brands.length === 0 && <option value="">No Brands Found</option>}
                                 {brands.map(b => (
                                     <option key={b.id} value={b.id}>{b.name}</option>
                                 ))}
                             </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none group-hover/brand:text-white transition-colors" />
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none group-hover/brand:text-foreground transition-colors" />
                         </div>
 
                         {/* Create New Link */}
