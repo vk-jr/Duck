@@ -98,6 +98,12 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
         formData.append('prompt', prompt)
         formData.append('brand_id', selectedBrandId)
 
+        // Get generation type
+        const typeSelect = document.getElementById('generationType') as HTMLSelectElement
+        if (typeSelect) {
+            formData.append('generation_type', typeSelect.value)
+        }
+
         const result = await generateImage(formData)
 
         if (result.error) {
@@ -139,6 +145,19 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="relative glass-card rounded-3xl p-3 transition-all shadow-2xl shadow-primary/5 focus-within:shadow-primary/20 focus-within:ring-1 focus-within:ring-primary/20 hover:shadow-primary/10 group"
             >
+                {/* Generation Type Selector */}
+                <div className="absolute top-4 right-4 z-10">
+                    <select
+                        name="generationType"
+                        id="generationType"
+                        className="appearance-none bg-black/40 border border-white/10 text-white text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary hover:bg-white/10 cursor-pointer transition-colors"
+                        defaultValue="generation"
+                    >
+                        <option value="generation">Generation</option>
+                        <option value="segmentation">Segmentation</option>
+                        <option value="quality_check">Quality Check</option>
+                    </select>
+                </div>
                 <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}

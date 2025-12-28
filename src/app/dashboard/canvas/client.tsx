@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import ReactFlow, {
     MiniMap,
     Controls,
@@ -35,6 +36,8 @@ interface GeneratedImage {
     user_prompt: string
 }
 
+import { processCanvasImage } from './actions'
+
 function CanvasContent({ images }: { images: GeneratedImage[] }) {
     const reactFlowWrapper = useRef<HTMLDivElement>(null)
     const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
@@ -42,6 +45,22 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
     const { project } = useReactFlow()
 
     const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+    const [selectedNode, setSelectedNode] = useState<Node | null>(null)
+    const [isProcessing, setIsProcessing] = useState(false)
+
+    // Track pending generations: Map<layerId, { sourceNodeId: string, instruction: string }>
+    const pendingGenerations = useRef<Map<string, { sourceNodeId: string, instruction: string }>>(new Map())
+
+    // Listen for Realtime Updates from Supabase
+    const { createClient } = require('@/lib/supabase/client') // Dynamic import to avoid SSR issues if any, or standard import
+    // Note regarding require: standard import is better. Let's rely on standard import at top of file, but since I am editing the function body, I will assume import is added or I should add it.
+    // Instead of require, I'll rely on the assumption I can add imports via multi_replace or just use what's available. 
+    // Wait, the user has `import { createClient }` available? No, I need to add that import.
+    // For this ReplaceFileContent, I will focus on the logic inside component.
+    // I will use `useEffect` to subscribe.
+
+    // I need to import createClient. I'll do that in a separate step or assume I can do it here if I replace enough context.
+    // Let's replace the Logic block.
 
     const onConnect = useCallback(
         (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -52,6 +71,123 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
         event.preventDefault()
         event.dataTransfer.dropEffect = 'move'
     }, [])
+
+    const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+        setSelectedNode(node)
+        if (!isSidebarOpen) setIsSidebarOpen(true)
+    }, [isSidebarOpen])
+
+    const onPaneClick = useCallback(() => {
+        setSelectedNode(null)
+    }, [])
+
+
+    const handleProcess = async (text: string, type: string) => {
+        if (!selectedNode) return
+
+        setIsProcessing(true)
+        const imageUrl = selectedNode.data.src
+        const imageId = selectedNode.data.imageId || selectedNode.id
+        const sourceNodeId = selectedNode.id
+
+        const result = await processCanvasImage({
+            imageId,
+            imageUrl,
+            text,
+            type,
+            brandId: ''
+        })
+
+        setIsProcessing(false)
+
+        if (result.error) {
+            alert(result.error)
+        } else {
+            const layerId = result.layerId
+            alert(`Sent to processing engine! Layer ID: ${layerId}`)
+            console.log('Layer ID:', layerId)
+
+            // Track this pending generation
+            if (layerId) {
+                pendingGenerations.current.set(layerId, { sourceNodeId, instruction: text })
+            }
+        }
+    }
+
+    // Real-time Subscription Effect
+    React.useEffect(() => {
+        const supabase = createClient()
+        const channel = supabase
+            .channel('canvas-layer-updates')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'image_layers',
+                    filter: `status=eq.generated`
+                },
+                (payload: any) => {
+                    const layer = payload.new
+                    console.log('Received Layer Update:', layer)
+
+                    const pending = pendingGenerations.current.get(layer.id)
+                    if (pending) {
+                        const { sourceNodeId, instruction } = pending;
+
+                        // Find Source Node Position
+                        setNodes((currentNodes) => {
+                            const sourceNode = currentNodes.find(n => n.id === sourceNodeId)
+                            if (!sourceNode) return currentNodes
+
+                            const newNodeId = `layer-${layer.id}`
+
+                            // Prevent duplicate nodes
+                            if (currentNodes.some(n => n.id === newNodeId)) return currentNodes
+
+                            // Calculate New Position (Shifted Right)
+                            const newPosition = {
+                                x: sourceNode.position.x + 400, // Shift to the right
+                                y: sourceNode.position.y
+                            }
+
+                            const newNode: Node = {
+                                id: newNodeId,
+                                type: 'imageNode',
+                                position: newPosition,
+                                data: {
+                                    label: `Generated: ${instruction}`,
+                                    src: layer.layer_url,
+                                    type: 'generated',
+                                    imageId: layer.generated_image_id
+                                },
+                            }
+
+                            // Connect Source -> New Node
+                            const newEdge: Edge = {
+                                id: `e-${sourceNodeId}-${newNodeId}`,
+                                source: sourceNodeId,
+                                target: newNodeId,
+                                animated: true,
+                                style: { stroke: '#EAB308', strokeWidth: 2 },
+                            }
+
+                            setEdges((eds) => addEdge(newEdge, eds))
+
+                            // Remove from pending
+                            pendingGenerations.current.delete(layer.id)
+
+                            return [...currentNodes, newNode]
+                        })
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [setNodes, setEdges]) // Re-subscribe if setters change (unlikely) or just once.
 
     const onDrop = useCallback(
         (event: React.DragEvent) => {
@@ -86,6 +222,7 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
             const type = event.dataTransfer.getData('application/reactflow')
             const imageUrl = event.dataTransfer.getData('application/imageurl')
             const prompt = event.dataTransfer.getData('application/prompt')
+            const imageId = event.dataTransfer.getData('application/imageid')
 
             if (typeof type === 'undefined' || !type) {
                 return
@@ -100,7 +237,7 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                 id: `dnd-${Date.now()}`,
                 type,
                 position,
-                data: { label: prompt, src: imageUrl, type: 'asset' },
+                data: { label: prompt, src: imageUrl, type: 'asset', imageId },
             }
 
             setNodes((nds) => nds.concat(newNode))
@@ -154,6 +291,8 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                     onConnect={onConnect}
                     onDragOver={onDragOver}
                     onDrop={onDrop}
+                    onNodeClick={onNodeClick}
+                    onPaneClick={onPaneClick}
                     nodeTypes={nodeTypes}
 
                     minZoom={0.1}
@@ -187,7 +326,12 @@ function CanvasContent({ images }: { images: GeneratedImage[] }) {
                 isSidebarOpen ? "w-80" : "w-0 border-l-0"
             )}>
                 <div className="w-80 h-full"> {/* Inner Constrained Width */}
-                    <CanvasSidebar images={images} />
+                    <CanvasSidebar
+                        images={images}
+                        selectedNode={selectedNode}
+                        onProcess={handleProcess}
+                        isProcessing={isProcessing}
+                    />
                 </div>
             </div>
         </div>

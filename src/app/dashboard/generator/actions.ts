@@ -15,6 +15,7 @@ export async function generateImage(formData: FormData) {
     // 2. Get Form Data
     const prompt = formData.get('prompt') as string
     const brandId = formData.get('brand_id') as string // We need to fetch this from context or selection
+    const generationType = formData.get('generation_type') as string || 'generation'
 
     if (!prompt) return { error: 'Prompt is required' }
 
@@ -72,7 +73,10 @@ export async function generateImage(formData: FormData) {
                 prompt: prompt,
                 image_id: insertedImage.id, // THE KEY: n8n should use this to Update the row
                 brand_id: activeBrandId,
-                user_id: user.id
+                user_id: user.id,
+                metadata: {
+                    type: generationType
+                }
             })
         })
 

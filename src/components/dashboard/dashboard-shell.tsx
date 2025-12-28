@@ -9,7 +9,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     const [isCollapsed, setIsCollapsed] = useState(false)
 
     return (
-        <div className="min-h-screen bg-black text-white relative flex">
+        <div className="min-h-screen bg-background text-foreground relative flex">
             <Sidebar isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
 
             {/* 
