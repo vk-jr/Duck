@@ -1,10 +1,22 @@
-'use client'
-
 import Link from 'next/link'
 import { Plus, Sparkles, Layers, ArrowRight } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { createClient } from '@/lib/supabase/server'
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+    const supabase = await createClient()
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // Fetch latest 4 generated images
+    const { data: images } = await supabase
+        .from('generated_images')
+        .select('*')
+        .eq('created_by', user?.id)
+        .eq('status', 'Generated')
+        .order('created_at', { ascending: false })
+        .limit(4)
+
     return (
         <div className="space-y-8">
             {/* Hero / Welcome */}
@@ -61,14 +73,21 @@ export default function DashboardPage() {
             <div className="space-y-4">
                 <div className="flex items-center justify-between">
                     <h3 className="text-xl font-bold text-foreground font-serif">Recent Creations</h3>
-                    <Link href="/dashboard/assets" className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1">
+                    <Link href="/dashboard/gallery" className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1">
                         View All <ArrowRight className="w-4 h-4" />
                     </Link>
                 </div>
 
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                    {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="aspect-[3/4] rounded-2xl bg-secondary overflow-hidden relative group border border-border">
+                    {images?.map((image) => (
+                        <div key={image.id} className="aspect-[3/4] rounded-2xl bg-secondary overflow-hidden relative group border border-border">
+                            {image.image_url && (
+                                <img
+                                    src={image.image_url}
+                                    alt={image.user_prompt || "Generated Image"}
+                                    className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-105"
+                                />
+                            )}
                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
                                 <button className="w-full bg-white text-black py-2 rounded-lg font-medium text-sm hover:bg-gray-100">
                                     Deconstruct
@@ -76,6 +95,11 @@ export default function DashboardPage() {
                             </div>
                         </div>
                     ))}
+                    {(!images || images.length === 0) && (
+                        <div className="col-span-full h-32 flex flex-col items-center justify-center text-muted-foreground border border-dashed border-border rounded-xl bg-card">
+                            <p>No recent creations found.</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
