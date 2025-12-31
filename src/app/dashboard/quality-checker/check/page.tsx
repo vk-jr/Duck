@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { Upload, CheckCircle, AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { getBrands, createQualityCheck } from '@/app/actions/quality-checker'
 import { cn } from '@/lib/utils'
 
