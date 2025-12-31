@@ -14,7 +14,8 @@ import {
     LogOut,
     Palette,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    ShieldCheck
 } from 'lucide-react'
 
 const navItems = [
@@ -22,6 +23,7 @@ const navItems = [
     { name: 'Generator', href: '/dashboard/generator', icon: ImagePlus },
     { name: 'Canvas', href: '/dashboard/canvas', icon: Layers },
     { name: 'Gallery', href: '/dashboard/gallery', icon: ImagePlus },
+    { name: 'Quality Checker', href: '/dashboard/quality-checker', icon: ShieldCheck },
     { name: 'Brands', href: '/dashboard/brand/create', icon: Palette },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
