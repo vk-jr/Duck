@@ -132,30 +132,29 @@ export async function generateBrandGuidelines(formData: FormData) {
             .from('images')
             .getPublicUrl(fileName)
 
-        // 3. Create Record in 'generated_images' (to track status)
-        const { data: insertedImage, error: dbError } = await supabase
-            .from('generated_images')
-            .insert({
-                brand_id: brandId,
-                user_prompt: instructions || 'Generate Brand Guidelines',
-                status: 'generating',
-                created_by: user.id
+        // 3. Update Brand Record with Inputs (as requested)
+        const { error: updateError } = await supabase
+            .from('brands')
+            .update({
+                reference_image_url: publicUrl,
+                guideline_instructions: instructions
             })
-            .select()
-            .single()
+            .eq('id', brandId)
 
-        if (dbError) {
-            console.error('DB Insert Error:', dbError)
-            return { success: false, error: 'Failed to create generation record' }
+        if (updateError) {
+            console.error('Brand Update Error:', updateError)
         }
 
         // 4. Call Webhook
         const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_GENERATION
         if (!webhookUrl) return { success: false, error: 'Webhook URL not configured' }
 
+        // Generate a temporary ID since we aren't saving to generated_images
+        const tempId = crypto.randomUUID()
+
         const webhookBody = {
             prompt: instructions,
-            image_id: insertedImage.id,
+            image_id: tempId,
             brand_id: brandId,
             user_id: user.id,
             metadata: {
@@ -175,7 +174,7 @@ export async function generateBrandGuidelines(formData: FormData) {
         }
 
         revalidatePath('/dashboard/quality-checker/create')
-        return { success: true, data: insertedImage }
+        return { success: true, data: { id: tempId, status: 'sent_to_webhook' } }
 
     } catch (e) {
         console.error('Action error:', e)
