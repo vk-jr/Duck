@@ -25,6 +25,28 @@ export async function getBrands() {
     }
 }
 
+export async function getQualityCheck(id: string) {
+    const supabase = await createClient()
+
+    try {
+        const { data, error } = await supabase
+            .from('quality_checks')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+        if (error) {
+            console.error('Error fetching quality check:', error)
+            return null
+        }
+
+        return data
+    } catch (e) {
+        console.error('Exception fetching quality check:', e)
+        return null
+    }
+}
+
 export async function createQualityCheck(formData: FormData) {
     const supabase = await createClient()
 
@@ -44,12 +66,11 @@ export async function createQualityCheck(formData: FormData) {
         }
 
         // 1. Upload Image to Storage
-        // Assuming a 'quality-checks' bucket exists, or using a general one
         const fileExt = file.name.split('.').pop()
         const fileName = `${userId}/${Date.now()}.${fileExt}`
         const { data: uploadData, error: uploadError } = await supabase
             .storage
-            .from('images') // Using existing 'images' bucket or create 'quality-checks'
+            .from('images')
             .upload(fileName, file)
 
         if (uploadError) {
@@ -57,30 +78,20 @@ export async function createQualityCheck(formData: FormData) {
             return { success: false, error: 'Failed to upload image' }
         }
 
-        // Get public URL
         const { data: { publicUrl } } = supabase
             .storage
             .from('images')
             .getPublicUrl(fileName)
 
-        // 2. Mock Analysis Result
-        // In a real scenario, this would call an AI service
-        const mockResult = {
-            compliant: true,
-            score: 0.95,
-            issues: [],
-            timestamp: new Date().toISOString()
-        }
-
-        // 3. Save to Database
+        // 2. Save to Database with status 'generating'
         const { data: insertData, error: insertError } = await supabase
             .from('quality_checks')
             .insert({
                 user_id: userId,
                 brand_id: brandId || null,
                 image_url: publicUrl,
-                status: 'completed',
-                result: mockResult
+                status: 'generating',
+                result: null
             })
             .select()
             .single()
@@ -89,6 +100,32 @@ export async function createQualityCheck(formData: FormData) {
             console.error('Database insert error:', insertError)
             return { success: false, error: 'Failed to save check result' }
         }
+
+        // 3. Call Webhook
+        const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_GENERATION
+        if (!webhookUrl) {
+            console.warn('Webhook URL not configured')
+            return { success: true, data: insertData }
+        }
+
+        // Don't await webhook to keep UI snappy, or do await if we want to ensure it sent
+        // User asked to "send to the same web book with a type 'check'"
+        const webhookBody = {
+            id: insertData.id, // check ID
+            image_url: publicUrl,
+            brand_id: brandId,
+            user_id: userId,
+            metadata: {
+                type: 'check'
+            }
+        }
+
+        // Fire and forget, or await? Usually safer to await at least the initiation
+        await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookBody)
+        })
 
         revalidatePath('/dashboard/quality-checker/check')
         return { success: true, data: insertData }
