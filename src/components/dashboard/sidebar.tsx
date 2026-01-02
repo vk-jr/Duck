@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     LayoutDashboard,
@@ -35,6 +36,7 @@ interface SidebarProps {
 
 export function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
     const pathname = usePathname()
+    const router = useRouter()
 
     return (
         <motion.div
@@ -101,7 +103,15 @@ export function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
                     {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
                 </button>
 
-                <button className={cn("flex items-center gap-3 px-3 py-3 w-full rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors", isCollapsed && "justify-center")}>
+                <button
+                    onClick={async () => {
+                        const supabase = createClient()
+                        await supabase.auth.signOut()
+                        router.push('/login')
+                        router.refresh()
+                    }}
+                    className={cn("flex items-center gap-3 px-3 py-3 w-full rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors", isCollapsed && "justify-center")}
+                >
                     <LogOut className="w-5 h-5 shrink-0" />
                     {!isCollapsed && <span>Sign Out</span>}
                 </button>
