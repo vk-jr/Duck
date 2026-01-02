@@ -13,7 +13,7 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
     return (
         <div className="relative group">
             {/* Minimal Image Container */}
-            <div className="rounded-lg overflow-hidden border-2 border-transparent group-hover:border-primary/50 ring-1 ring-white/10 shadow-none transition-none bg-black transform-gpu backface-hidden translate-z-0">
+            <div className="rounded-lg overflow-hidden border-2 border-transparent group-hover:border-primary/50 ring-1 ring-white/10 shadow-none transition-none bg-transparent transform-gpu backface-hidden translate-z-0">
                 {!data.src ? (
                     <div className="p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-zinc-900">
                         <Bird className="w-8 h-8 opacity-20" />
@@ -52,8 +52,8 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
             )}
 
             {/* Handles */}
-            <Handle type="target" position={Position.Top} className="opacity-0 group-hover:opacity-100 !bg-primary !w-3 !h-3 !border-2 !border-black transition-opacity" />
-            <Handle type="source" position={Position.Bottom} className="opacity-0 group-hover:opacity-100 !bg-primary !w-3 !h-3 !border-2 !border-black transition-opacity" />
+            <Handle type="target" position={Position.Left} className="opacity-0 group-hover:opacity-100 !bg-primary !w-3 !h-3 !border-2 !border-black transition-opacity" />
+            <Handle type="source" position={Position.Right} className="opacity-0 group-hover:opacity-100 !bg-primary !w-3 !h-3 !border-2 !border-black transition-opacity" />
         </div>
     )
 }

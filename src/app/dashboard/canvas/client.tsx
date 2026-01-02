@@ -46,6 +46,7 @@ interface ImageLayer {
     status: string
     metadata: any
     created_at: string
+    generated_image_id?: string
 }
 
 function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: ImageLayer[] }) {
@@ -321,16 +322,57 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                 y: event.clientY - reactFlowBounds.top,
             })
 
+            const mainNodeId = `dnd-${Date.now()}`
             const newNode: Node = {
-                id: `dnd-${Date.now()}`,
+                id: mainNodeId,
                 type,
                 position,
                 data: { label: prompt, src: imageUrl, type: assetType, imageId },
             }
 
-            setNodes((nds) => nds.concat(newNode))
+            const newNodes = [newNode]
+            const newEdges: Edge[] = []
+
+            // If it's a main image, find and add its layers
+            if (assetType === 'generated' && imageId) {
+                const relatedLayers = layers.filter(l => l.generated_image_id === imageId && l.status.toLowerCase() === 'generated')
+
+                relatedLayers.forEach((layer, index) => {
+                    const layerNodeId = `layer-auto-${layer.id}-${Date.now()}`
+
+                    // Position: Spread out to the right, staggered vertically
+                    const layerPosition = {
+                        x: position.x + 400 + (index * 50),
+                        y: position.y + (index * 300)
+                    }
+
+                    newNodes.push({
+                        id: layerNodeId,
+                        type: 'imageNode',
+                        position: layerPosition,
+                        data: {
+                            label: layer.metadata?.prompt || 'Layer',
+                            src: layer.layer_url,
+                            type: 'generated',
+                            imageId: layer.generated_image_id
+                        }
+                    })
+
+                    newEdges.push({
+                        id: `e-${mainNodeId}-${layerNodeId}`,
+                        source: mainNodeId,
+                        target: layerNodeId,
+                        animated: true,
+                    })
+                })
+            }
+
+            setNodes((nds) => nds.concat(newNodes))
+            if (newEdges.length > 0) {
+                setEdges((eds) => eds.concat(newEdges))
+            }
         },
-        [project, setNodes]
+        [project, setNodes, layers, setEdges]
     )
 
     return (
