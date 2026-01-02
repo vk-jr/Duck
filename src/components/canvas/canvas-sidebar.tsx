@@ -22,12 +22,31 @@ interface CanvasSidebarProps {
     selectedNode: Node | null
     onProcess: (text: string, type: string) => void
     isProcessing: boolean
+    editModeLayers?: ImageLayer[] // New Prop
+    activeLayerId?: string | null // New Prop
+    onLayerSelect?: (id: string | null) => void // New Prop
 }
 
-export default function CanvasSidebar({ images, layers = [], selectedNode, onProcess, isProcessing }: CanvasSidebarProps) {
+export default function CanvasSidebar({
+    images,
+    layers = [],
+    selectedNode,
+    onProcess,
+    isProcessing,
+    editModeLayers,
+    activeLayerId,
+    onLayerSelect
+}: CanvasSidebarProps) {
     const [layerText, setLayerText] = useState('')
     const [layerType, setLayerType] = useState('segmentation')
     const [activeTab, setActiveTab] = useState<'assets' | 'layers'>('assets')
+
+    // Force Layers tab if in Edit Mode
+    useEffect(() => {
+        if (editModeLayers) {
+            setActiveTab('layers')
+        }
+    }, [editModeLayers])
 
     // Reset input when selection changes
     useEffect(() => {
@@ -97,39 +116,44 @@ export default function CanvasSidebar({ images, layers = [], selectedNode, onPro
         )
     }
 
+    // Determine what to show in the list
+    const displayedLayers = editModeLayers || layers
+
     return (
         <aside className="w-full h-full border-r border-border bg-card flex flex-col font-sans">
             <div className="p-4 border-b border-border flex justify-between items-center">
                 <div>
-                    <h2 className="font-semibold text-foreground">Library</h2>
-                    <p className="text-xs text-muted-foreground">Drag to canvas</p>
+                    <h2 className="font-semibold text-foreground">{editModeLayers ? 'Edit Mode' : 'Library'}</h2>
+                    <p className="text-xs text-muted-foreground">{editModeLayers ? 'Select layer to move' : 'Drag to canvas'}</p>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex p-2 gap-2 border-b border-border bg-secondary/20">
-                <button
-                    onClick={() => setActiveTab('assets')}
-                    className={cn(
-                        "flex-1 py-2 text-xs font-medium rounded-lg transition-all",
-                        activeTab === 'assets' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary/50"
-                    )}
-                >
-                    Assets
-                </button>
-                <button
-                    onClick={() => setActiveTab('layers')}
-                    className={cn(
-                        "flex-1 py-2 text-xs font-medium rounded-lg transition-all",
-                        activeTab === 'layers' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary/50"
-                    )}
-                >
-                    Layers
-                </button>
-            </div>
+            {/* Tabs (Hidden in Edit Mode) */}
+            {!editModeLayers && (
+                <div className="flex p-2 gap-2 border-b border-border bg-secondary/20">
+                    <button
+                        onClick={() => setActiveTab('assets')}
+                        className={cn(
+                            "flex-1 py-2 text-xs font-medium rounded-lg transition-all",
+                            activeTab === 'assets' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary/50"
+                        )}
+                    >
+                        Assets
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('layers')}
+                        className={cn(
+                            "flex-1 py-2 text-xs font-medium rounded-lg transition-all",
+                            activeTab === 'layers' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:bg-secondary/50"
+                        )}
+                    >
+                        Layers
+                    </button>
+                </div>
+            )}
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-                {activeTab === 'assets' ? (
+                {activeTab === 'assets' && !editModeLayers ? (
                     <>
                         {images.map((img) => (
                             <div
@@ -156,27 +180,36 @@ export default function CanvasSidebar({ images, layers = [], selectedNode, onPro
                     </>
                 ) : (
                     <>
-                        {layers.map((layer) => (
-                            <div
-                                key={layer.id}
-                                className="group relative aspect-square rounded-xl overflow-hidden cursor-grab active:cursor-grabbing border border-border hover:border-primary/50 transition-all bg-secondary"
-                                onDragStart={(event) => onDragStart(event, 'imageNode', layer.layer_url, layer.metadata?.prompt || 'Layer', layer.id, 'layer')}
-                                draggable
-                            >
-                                <img
-                                    src={layer.layer_url}
-                                    alt={layer.metadata?.prompt || 'Layer'}
-                                    className="w-full h-full object-cover p-2 pointer-events-none"
-                                />
-                                <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/60 backdrop-blur-sm">
-                                    <p className="text-[10px] text-white/80 truncate">{layer.metadata?.prompt || 'Generated Layer'}</p>
+                        {displayedLayers.map((layer) => {
+                            const isActive = activeLayerId === layer.id
+                            return (
+                                <div
+                                    key={layer.id}
+                                    onClick={() => onLayerSelect?.(layer.id)}
+                                    className={cn(
+                                        "group relative aspect-square rounded-xl overflow-hidden cursor-pointer border transition-all bg-secondary",
+                                        isActive ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/50"
+                                    )}
+                                    onDragStart={(event) => !editModeLayers && onDragStart(event, 'imageNode', layer.layer_url, layer.metadata?.prompt || 'Layer', layer.id, 'layer')}
+                                    draggable={!editModeLayers} // Disable drag in edit mode? Or maybe allow to re-add? keeping disabled for clarity
+                                >
+                                    <img
+                                        src={layer.layer_url}
+                                        alt={layer.metadata?.prompt || 'Layer'}
+                                        className="w-full h-full object-cover p-2 pointer-events-none"
+                                    />
+                                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/60 backdrop-blur-sm">
+                                        <p className="text-[10px] text-white/80 truncate">{layer.metadata?.prompt || 'Generated Layer'}</p>
+                                    </div>
+                                    {!editModeLayers && (
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <GripVertical className="text-white w-6 h-6" />
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <GripVertical className="text-white w-6 h-6" />
-                                </div>
-                            </div>
-                        ))}
-                        {layers.length === 0 && (
+                            )
+                        })}
+                        {displayedLayers.length === 0 && (
                             <div className="text-center py-10 text-muted-foreground text-sm">
                                 No layers found.
                             </div>

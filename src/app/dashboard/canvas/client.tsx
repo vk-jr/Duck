@@ -24,6 +24,7 @@ import MemoryPanel from '@/components/canvas/memory-panel'
 import { Wand2, Save, Upload, MousePointer2, PanelRightOpen, History, Maximize, Minimize } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { processCanvasImage, saveCanvasState } from './actions'
+import ImageEditor from '@/components/canvas/image-editor'
 
 // Register custom node types
 const nodeTypes = {
@@ -61,6 +62,15 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
     const [isProcessing, setIsProcessing] = useState(false)
     const [lastSaved, setLastSaved] = useState<Date | null>(null)
     const [isFullscreen, setIsFullscreen] = useState(false)
+
+    // Edit Mode State
+    const [editModeData, setEditModeData] = useState<{
+        imageId: string
+        baseImage: string
+        layers: ImageLayer[]
+    } | null>(null)
+    const [activeLayerId, setActiveLayerId] = useState<string | null>(null)
+
 
     // Canvas Container Ref for Fullscreen
     const canvasContainerRef = useRef<HTMLDivElement>(null)
@@ -180,7 +190,6 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
 
                         // Find Source Node Position
                         setNodes((currentNodes) => {
-                            // ... (logic remains same, just ensuring formatting)
                             const sourceNode = currentNodes.find(n => n.id === sourceNodeId)
                             if (!sourceNode) return currentNodes
 
@@ -241,6 +250,47 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         setSelectedNode(node)
         if (!isSidebarOpen) setIsSidebarOpen(true)
     }, [isSidebarOpen])
+
+    // NEW: Handle Edit Button Click
+    const { getNodes } = useReactFlow() // Ensure this is destructured
+
+    const onNodeEdit = useCallback((nodeId: string) => {
+        const nodes = getNodes() // Get latest nodes without dependency
+        const node = nodes.find(n => n.id === nodeId)
+        if (!node) return
+
+        const imageId = node.data.imageId || node.data.id // Fallback might be needed if imageId isn't on upload
+
+        // Find links
+        // If it's a main image (type=generation/upload usually represented by assetType in Drop, but here we check data)
+        // We'll rely on our layers prop to find associated layers
+
+        // Filter layers for this image
+        const imageLayers = layers.filter(l => l.generated_image_id === imageId && l.status.toLowerCase() === 'generated')
+
+        setEditModeData({
+            imageId: imageId || nodeId, // unique ID for editing session
+            baseImage: node.data.src,
+            layers: imageLayers
+        })
+        setActiveLayerId(null)
+        setIsSidebarOpen(true) // Ensure sidebar is open for layer selection
+
+    }, [getNodes, layers]) // Removed 'nodes' dependency
+
+    // Inject onEdit into node data
+    useEffect(() => {
+        setNodes(nds => nds.map(node => {
+            if (node.type === 'imageNode' && !node.data.onEdit) {
+                return {
+                    ...node,
+                    data: { ...node.data, onEdit: onNodeEdit }
+                }
+            }
+            return node
+        }))
+    }, [nodes.length, onNodeEdit, setNodes]) // Check on length or when nodes change broadly
+
 
     const onPaneClick = useCallback(() => {
         setSelectedNode(null)
@@ -375,12 +425,28 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         [project, setNodes, layers, setEdges]
     )
 
+
     return (
         <div ref={canvasContainerRef} className="flex h-[calc(100vh-6rem)] w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-card relative">
 
             <div className="flex-1 relative h-full order-1" ref={reactFlowWrapper}>
+
+                {/* Render Image Editor Overlay if in Edit Mode */}
+                {editModeData && (
+                    <ImageEditor
+                        baseImage={editModeData.baseImage}
+                        layers={editModeData.layers}
+                        activeLayerId={activeLayerId}
+                        onLayerSelect={setActiveLayerId}
+                        onExit={() => {
+                            setEditModeData(null)
+                            setActiveLayerId(null)
+                        }}
+                    />
+                )}
+
                 {/* Empty State Watermark */}
-                {nodes.length === 0 && (
+                {nodes.length === 0 && !editModeData && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                         <div className="text-center opacity-10 select-none">
                             <h1 className="text-6xl font-black text-foreground tracking-tighter mb-4">CANVAS</h1>
@@ -390,50 +456,56 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                 )}
 
                 {/* Canvas Toolbar */}
-                <div className="absolute top-4 left-4 z-10 flex gap-2">
-                    <div className="bg-secondary/80 backdrop-blur border border-border rounded-lg p-1 flex">
-                        <div className="px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-foreground/80 border-r border-border">
-                            <MousePointer2 className="w-3 h-3" /> Select
+                {!editModeData && (
+                    <div className="absolute top-4 left-4 z-10 flex gap-2">
+                        <div className="bg-secondary/80 backdrop-blur border border-border rounded-lg p-1 flex">
+                            <div className="px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-foreground/80 border-r border-border">
+                                <MousePointer2 className="w-3 h-3" /> Select
+                            </div>
+                            <div className="px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground hover:bg-accent cursor-pointer transition-colors">
+                                <Upload className="w-3 h-3" /> Upload
+                            </div>
                         </div>
-                        <div className="px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground hover:bg-accent cursor-pointer transition-colors">
-                            <Upload className="w-3 h-3" /> Upload
-                        </div>
+                        {/* Memory/History Button */}
+                        <button
+                            onClick={() => setIsMemoryOpen(true)}
+                            className="bg-secondary/80 backdrop-blur border border-border rounded-lg p-2 text-foreground/80 hover:bg-accent transition-colors flex items-center gap-2"
+                            title="Canvas Memory"
+                        >
+                            <History className="w-4 h-4" />
+                            <span className="text-xs font-medium hidden md:block">Memory</span>
+                        </button>
+                        {lastSaved && (
+                            <div className="flex items-center text-[10px] text-muted-foreground bg-secondary/50 px-2 rounded-lg backdrop-blur">
+                                Saved
+                            </div>
+                        )}
                     </div>
-                    {/* Memory/History Button */}
-                    <button
-                        onClick={() => setIsMemoryOpen(true)}
-                        className="bg-secondary/80 backdrop-blur border border-border rounded-lg p-2 text-foreground/80 hover:bg-accent transition-colors flex items-center gap-2"
-                        title="Canvas Memory"
-                    >
-                        <History className="w-4 h-4" />
-                        <span className="text-xs font-medium hidden md:block">Memory</span>
-                    </button>
-                    {lastSaved && (
-                        <div className="flex items-center text-[10px] text-muted-foreground bg-secondary/50 px-2 rounded-lg backdrop-blur">
-                            Saved
-                        </div>
-                    )}
-                </div>
+                )}
 
-                <div className="absolute top-4 right-4 z-10 flex gap-2">
-                    <button
-                        onClick={toggleFullscreen}
-                        className="bg-secondary/80 text-foreground p-2 rounded-lg hover:bg-accent transition-colors border border-border"
-                        title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-                    >
-                        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-                    </button>
-                    <button className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm">
-                        <Save className="w-4 h-4" /> Save Board
-                    </button>
-                    <button
-                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                        className="bg-secondary/80 text-foreground p-2 rounded-lg hover:bg-accent transition-colors border border-border"
-                        title="Toggle Assets"
-                    >
-                        <PanelRightOpen className={cn("w-5 h-5 transition-transform", isSidebarOpen && "rotate-180")} />
-                    </button>
-                </div>
+                {/* Right Top Toolbar */}
+                {!editModeData && (
+                    <div className="absolute top-4 right-4 z-10 flex gap-2">
+                        <button
+                            onClick={toggleFullscreen}
+                            className="bg-secondary/80 text-foreground p-2 rounded-lg hover:bg-accent transition-colors border border-border"
+                            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                        >
+                            {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                        </button>
+                        <button className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm">
+                            <Save className="w-4 h-4" /> Save Board
+                        </button>
+                        <button
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                            className="bg-secondary/80 text-foreground p-2 rounded-lg hover:bg-accent transition-colors border border-border"
+                            title="Toggle Assets"
+                        >
+                            <PanelRightOpen className={cn("w-5 h-5 transition-transform", isSidebarOpen && "rotate-180")} />
+                        </button>
+                    </div>
+                )}
+
 
                 <ReactFlow
                     nodes={nodes}
@@ -492,6 +564,10 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                         onProcess={handleProcess}
                         isProcessing={isProcessing}
                         layers={layers}
+                        // Edit Mode Props
+                        editModeLayers={editModeData?.layers}
+                        activeLayerId={activeLayerId}
+                        onLayerSelect={setActiveLayerId}
                     />
                 </div>
             </div>

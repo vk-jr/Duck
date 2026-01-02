@@ -1,13 +1,20 @@
 import { memo } from 'react'
 import { Handle, Position, useReactFlow } from 'reactflow'
-import { Bird, X } from 'lucide-react'
+import { Bird, X, Pencil } from 'lucide-react'
 
-function ImageNode({ id, data }: { id: string, data: { label: string, src: string, type: 'layer' | 'background' } }) {
+function ImageNode({ id, data }: { id: string, data: { label: string, src: string, type: 'layer' | 'background', onEdit?: (id: string) => void } }) {
     const { setNodes } = useReactFlow()
 
     const deleteNode = (e: React.MouseEvent) => {
         e.stopPropagation() // Prevent selecting the node when clicking delete
         setNodes((nodes) => nodes.filter((n) => n.id !== id))
+    }
+
+    const handleEdit = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (data.onEdit) {
+            data.onEdit(id)
+        }
     }
 
     return (
@@ -35,6 +42,15 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
                 {data.label}
             </div>
 
+            {/* Edit Button */}
+            <button
+                onClick={handleEdit}
+                className="absolute -top-3 -left-3 bg-secondary hover:bg-secondary/80 text-foreground p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-30 border border-border"
+                title="Edit"
+            >
+                <Pencil className="w-3 h-3" />
+            </button>
+
             {/* Delete Button */}
             <button
                 onClick={deleteNode}
@@ -46,7 +62,7 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
 
             {/* Badge */}
             {data.type && (
-                <div className="absolute -top-2 left-2 bg-zinc-800 text-zinc-400 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="absolute -top-2 left-2 bg-zinc-800 text-zinc-400 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden">
                     {data.type}
                 </div>
             )}
