@@ -17,15 +17,68 @@ interface ImageEditorProps {
     onLayerSelect: (id: string | null) => void
 }
 
+type Transform = {
+    x: number
+    y: number
+    width?: number
+    height?: number
+}
+
+// Resize Handle Component
+const ResizeHandle = ({
+    position,
+    onMouseDown
+}: {
+    position: 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw',
+    onMouseDown: (e: React.MouseEvent, pos: string) => void
+}) => {
+    const cursorMap = {
+        n: 'ns-resize',
+        s: 'ns-resize',
+        e: 'ew-resize',
+        w: 'ew-resize',
+        ne: 'nesw-resize',
+        nw: 'nwse-resize',
+        se: 'nwse-resize',
+        sw: 'nesw-resize'
+    }
+
+    const styleMap: Record<string, string> = {
+        n: 'top-0 left-1/2 -ml-1.5 -mt-1.5',
+        s: 'bottom-0 left-1/2 -ml-1.5 -mb-1.5',
+        e: 'right-0 top-1/2 -mt-1.5 -mr-1.5',
+        w: 'left-0 top-1/2 -mt-1.5 -ml-1.5',
+        ne: 'top-0 right-0 -mt-1.5 -mr-1.5',
+        nw: 'top-0 left-0 -mt-1.5 -ml-1.5',
+        se: 'bottom-0 right-0 -mb-1.5 -mr-1.5',
+        sw: 'bottom-0 left-0 -mb-1.5 -ml-1.5'
+    }
+
+    return (
+        <div
+            className={cn(
+                "absolute w-3 h-3 bg-white border border-primary rounded-full z-20 hover:scale-125 transition-transform",
+                styleMap[position]
+            )}
+            style={{ cursor: cursorMap[position] }}
+            onMouseDown={(e) => onMouseDown(e, position)}
+        />
+    )
+}
+
 export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, onLayerSelect }: ImageEditorProps) {
     const containerRef = useRef<HTMLDivElement>(null)
-    const [layerPositions, setLayerPositions] = useState<Record<string, { x: number, y: number }>>({})
+    const [layerTransforms, setLayerTransforms] = useState<Record<string, Transform>>({})
     const [aspectRatio, setAspectRatio] = useState<number | null>(null)
 
-    // Initialize drag state
+    // Interaction State
     const [isDragging, setIsDragging] = useState(false)
+    const [isResizing, setIsResizing] = useState(false)
+    const [resizeHandle, setResizeHandle] = useState<string | null>(null)
+
+    // Initial Capture for delta calculation
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-    const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+    const [initialTransform, setInitialTransform] = useState<Transform>({ x: 0, y: 0 })
 
     // Measure base image on load
     const onBaseImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -35,44 +88,147 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
         }
     }
 
+    // Initialize/Capture dimensions if missing
+    const getOrInitTransform = (layerId: string, element: HTMLElement) => {
+        const current = layerTransforms[layerId]
+        if (current && current.width !== undefined && current.height !== undefined) {
+            return current
+        }
+
+        // Capture natural size if first time interacting
+        // We use offsetWidth/Height from the rendered element
+        return {
+            x: current?.x || 0,
+            y: current?.y || 0,
+            width: element.offsetWidth,
+            height: element.offsetHeight
+        }
+    }
+
+
     const handleMouseDown = (e: React.MouseEvent, layerId: string) => {
         e.stopPropagation()
         onLayerSelect(layerId)
+
+        // Ensure we have dimensions captured
+        const element = e.currentTarget as HTMLElement
+        const transform = getOrInitTransform(layerId, element)
+        setInitialTransform(transform)
+        setLayerTransforms(prev => ({ ...prev, [layerId]: transform }))
+
         setIsDragging(true)
         setDragStart({ x: e.clientX, y: e.clientY })
-
-        const currentPos = layerPositions[layerId] || { x: 0, y: 0 }
-        setDragOffset(currentPos)
     }
 
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (!isDragging || !activeLayerId) return
+    const handleResizeStart = (e: React.MouseEvent, position: string) => {
+        e.stopPropagation()
+        if (!activeLayerId) return
 
-        const dx = e.clientX - dragStart.x
-        const dy = e.clientY - dragStart.y
+        setIsResizing(true)
+        setResizeHandle(position)
+        setDragStart({ x: e.clientX, y: e.clientY })
 
-        setLayerPositions(prev => ({
-            ...prev,
-            [activeLayerId]: {
-                x: dragOffset.x + dx,
-                y: dragOffset.y + dy
+        // We know we have full transform because handles only show for active (which sets init on select)
+        // verify existence just in case
+        const current = layerTransforms[activeLayerId]
+        if (current) {
+            setInitialTransform(current)
+        }
+    }
+
+    // Global listeners for robust drag/resize
+    useEffect(() => {
+        if (isDragging || isResizing) {
+            const onWindowMove = (e: MouseEvent) => handleMouseMove(e)
+            const onWindowUp = () => handleMouseUp()
+
+            window.addEventListener('mousemove', onWindowMove)
+            window.addEventListener('mouseup', onWindowUp)
+
+            return () => {
+                window.removeEventListener('mousemove', onWindowMove)
+                window.removeEventListener('mouseup', onWindowUp)
             }
-        }))
+        }
+    }, [isDragging, isResizing, dragStart, activeLayerId, initialTransform, resizeHandle])
+    // Added dependencies to ensure closure has latest state
+
+    const handleMouseMove = (e: React.MouseEvent | MouseEvent) => {
+        if (!activeLayerId) return
+
+        const clientX = 'clientX' in e ? e.clientX : (e as unknown as MouseEvent).clientX
+        const clientY = 'clientY' in e ? e.clientY : (e as unknown as MouseEvent).clientY
+
+        const dx = clientX - dragStart.x
+        const dy = clientY - dragStart.y
+
+        if (isDragging) {
+            setLayerTransforms(prev => ({
+                ...prev,
+                [activeLayerId]: {
+                    ...initialTransform,
+                    x: initialTransform.x + dx,
+                    y: initialTransform.y + dy
+                }
+            }))
+        }
+        else if (isResizing && initialTransform.width && initialTransform.height) {
+            // ... (rest of resize logic same)
+            // Calculate new geometry based on handle
+            let newX = initialTransform.x
+            let newY = initialTransform.y
+            let newW = initialTransform.width
+            let newH = initialTransform.height
+
+            // Horizontal logic
+            if (resizeHandle?.includes('e')) {
+                newW = Math.max(20, initialTransform.width + dx) // Min width 20
+            }
+            if (resizeHandle?.includes('w')) {
+                const proposedW = initialTransform.width - dx
+                if (proposedW > 20) {
+                    newW = proposedW
+                    newX = initialTransform.x + dx
+                }
+            }
+
+            // Vertical logic
+            if (resizeHandle?.includes('s')) {
+                newH = Math.max(20, initialTransform.height + dy)
+            }
+            if (resizeHandle?.includes('n')) {
+                const proposedH = initialTransform.height - dy
+                if (proposedH > 20) {
+                    newH = proposedH
+                    newY = initialTransform.y + dy
+                }
+            }
+
+            setLayerTransforms(prev => ({
+                ...prev,
+                [activeLayerId]: {
+                    x: newX,
+                    y: newY,
+                    width: newW,
+                    height: newH
+                }
+            }))
+        }
     }
 
     const handleMouseUp = () => {
         setIsDragging(false)
+        setIsResizing(false)
+        setResizeHandle(null)
     }
 
     return (
         <div
-            className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col pt-16 md:pt-0 md:pl-80 transition-all"
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
+            className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col pt-16 md:pt-0 transition-all"
+        // Removed onMouseMove, onMouseUp, onMouseLeave from here
         >
             {/* Toolbar */}
-            <div className="absolute top-4 left-4 md:left-84 z-50 flex gap-4 items-center">
+            <div className="absolute top-4 left-4 z-50">
                 <button
                     onClick={onExit}
                     className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-lg text-sm font-medium transition-colors border border-border"
@@ -80,13 +236,16 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                     <ArrowLeft className="w-4 h-4" />
                     Back to Canvas
                 </button>
-                <div className="text-sm text-muted-foreground">
+            </div>
+
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider bg-background/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/5">
                     Editing Mode
                 </div>
             </div>
 
             {/* Main Editing Area */}
-            <div className="flex-1 flex items-center justify-center p-8 overflow-hidden relative">
+            <div className="flex-1 flex items-center justify-center p-4 overflow-hidden relative">
 
                 {/* Responsive Container locked to aspect ratio */}
                 <div
@@ -95,8 +254,8 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                     style={{
                         width: '100%',
                         height: '100%',
-                        maxHeight: '85vh',
-                        maxWidth: aspectRatio ? `calc(85vh * ${aspectRatio})` : '100%',
+                        maxHeight: '90vh',
+                        maxWidth: aspectRatio ? `calc(90vh * ${aspectRatio})` : '100%',
                         aspectRatio: aspectRatio ? `${aspectRatio}` : 'auto'
                     }}
                 >
@@ -110,7 +269,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
 
                     {/* Layers */}
                     {layers.map((layer) => {
-                        const pos = layerPositions[layer.id] || { x: 0, y: 0 }
+                        const transform = layerTransforms[layer.id] || { x: 0, y: 0 }
                         const isActive = activeLayerId === layer.id
 
                         return (
@@ -118,11 +277,13 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                                 key={layer.id}
                                 onMouseDown={(e) => handleMouseDown(e, layer.id)}
                                 className={cn(
-                                    "absolute cursor-move transition-shadow select-none",
-                                    isActive && "ring-2 ring-primary ring-opacity-100 z-10"
+                                    "absolute select-none",
+                                    isActive ? "ring-2 ring-primary ring-opacity-100 z-10" : "hover:ring-1 hover:ring-primary/50"
                                 )}
                                 style={{
-                                    transform: `translate(${pos.x}px, ${pos.y}px)`,
+                                    transform: `translate(${transform.x}px, ${transform.y}px)`,
+                                    width: transform.width, // Undefined = auto
+                                    height: transform.height,
                                     top: 0,
                                     left: 0,
                                 }}
@@ -130,16 +291,22 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                                 <img
                                     src={layer.layer_url}
                                     alt={layer.metadata?.prompt || 'layer'}
-                                    className="max-w-none h-auto object-contain pointer-events-none"
-                                    style={{
-                                        maxWidth: '100%',
-                                        maxHeight: '100%'
-                                    }}
+                                    className="w-full h-full object-contain pointer-events-none block"
+                                    draggable={false}
                                 />
+
+                                {/* Resize Handles (Only when active) */}
                                 {isActive && (
-                                    <div className="absolute -top-2 -right-2 p-1 bg-primary text-primary-foreground rounded-full shadow-lg">
-                                        <Move className="w-3 h-3" />
-                                    </div>
+                                    <>
+                                        <ResizeHandle position="nw" onMouseDown={handleResizeStart} />
+                                        <ResizeHandle position="ne" onMouseDown={handleResizeStart} />
+                                        <ResizeHandle position="sw" onMouseDown={handleResizeStart} />
+                                        <ResizeHandle position="se" onMouseDown={handleResizeStart} />
+                                        <ResizeHandle position="n" onMouseDown={handleResizeStart} />
+                                        <ResizeHandle position="s" onMouseDown={handleResizeStart} />
+                                        <ResizeHandle position="e" onMouseDown={handleResizeStart} />
+                                        <ResizeHandle position="w" onMouseDown={handleResizeStart} />
+                                    </>
                                 )}
                             </div>
                         )
