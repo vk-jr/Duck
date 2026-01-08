@@ -100,9 +100,15 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
 
         // Get generation type
         const typeSelect = document.getElementById('generationType') as HTMLSelectElement
-        if (typeSelect) {
-            formData.append('generation_type', typeSelect.value)
+        let generationType = typeSelect ? typeSelect.value : 'generation'
+
+        // Override for Content Beta
+        const selectedBrand = brands.find(b => b.id === selectedBrandId)
+        if (selectedBrand?.name?.toLowerCase().includes('content beta')) {
+            generationType = 'content beta'
         }
+
+        formData.append('generation_type', generationType)
 
         const result = await generateImage(formData)
 
