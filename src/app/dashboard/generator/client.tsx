@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Sparkles, Image as ImageIcon, Loader2, ChevronDown, Plus, Wand2 } from 'lucide-react'
+import { Sparkles, Image as ImageIcon, Loader2, ChevronDown, Plus, Wand2, Download, Edit, RefreshCw, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { generateImage } from './actions'
 import { createClient } from '@/lib/supabase/client'
@@ -20,6 +20,7 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
     const [selectedBrandId, setSelectedBrandId] = useState<string>(brands[0]?.id || '')
     const [currentImageId, setCurrentImageId] = useState<string | null>(null)
     const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null)
+    const [isFocused, setIsFocused] = useState(false)
 
     const router = useRouter()
     const supabase = createClient()
@@ -62,10 +63,9 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'generated_images',
-                    filter: `id=eq.${currentImageId}`,
+                    filter: `id=eq.${currentImageId}`
                 },
                 (payload) => {
-                    // Realtime update received, check status
                     checkStatus()
                 }
             )
@@ -82,7 +82,6 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
             clearInterval(interval)
         }
     }, [currentImageId, supabase, router])
-
 
     const handleGenerate = async () => {
         if (!prompt) return
@@ -124,161 +123,196 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-12">
-            <div className="text-center space-y-4">
-                <motion.h2
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="text-4xl md:text-6xl font-extrabold text-foreground tracking-tighter"
-                >
-                    What shall we create?
-                </motion.h2>
-                <motion.p
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
-                    className="text-muted-foreground text-lg font-light"
-                >
-                    Our AI will match your brand's unique style automatically.
-                </motion.p>
-            </div>
-
-            {/* Prompt Input */}
-            <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="relative bg-card rounded-3xl p-3 transition-all border border-border shadow-2xl focus-within:ring-1 focus-within:ring-primary/20 group"
-            >
-                {/* Generation Type Selector */}
-                <div className="absolute top-4 right-4 z-10">
-                    <select
-                        name="generationType"
-                        id="generationType"
-                        className="appearance-none bg-secondary border border-border text-foreground text-xs font-medium px-3 py-1.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary hover:bg-accent cursor-pointer transition-colors"
-                        defaultValue="generation"
-                    >
-                        <option value="generation">Generation</option>
-                    </select>
-                </div>
-                <textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    disabled={isGenerating}
-                    placeholder="Describe your vision... (e.g., 'A cinematic shot of a luxury watch on a marble surface')"
-                    className="w-full bg-transparent border-none text-foreground text-xl font-light placeholder:text-muted-foreground p-6 focus:ring-0 min-h-[160px] resize-none disabled:opacity-50"
-                />
-
-                <div className="flex flex-col md:flex-row justify-between items-center px-4 pb-4 gap-4">
-                    <div className="flex gap-4 items-center w-full md:w-auto">
-                        <button disabled={isGenerating} className="p-3 rounded-xl hover:bg-accent text-muted-foreground hover:text-foreground transition-colors" title="Upload Reference">
-                            <ImageIcon className="w-5 h-5" />
-                        </button>
-
-                        {/* BRAND SELECTOR */}
-                        <div className="relative group/brand flex-1 md:flex-none">
-                            <select
-                                value={selectedBrandId}
-                                onChange={(e) => setSelectedBrandId(e.target.value)}
-                                className="appearance-none w-full md:w-auto bg-secondary border border-border text-foreground text-sm font-medium pl-4 pr-10 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary hover:bg-accent cursor-pointer transition-colors"
-                            >
-                                {brands.length === 0 && <option value="">No Brands Found</option>}
-                                {brands.map(b => (
-                                    <option key={b.id} value={b.id}>{b.name}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none group-hover/brand:text-foreground transition-colors" />
-                        </div>
-
-                        {/* Create New Link */}
-                        <Link href="/dashboard/brand/create" className="text-xs font-bold text-primary-foreground bg-primary px-4 py-2.5 rounded-xl hover:bg-primary/80 transition-all flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-[1.02]">
-                            <Plus className="w-4 h-4" /> New Brand
-                        </Link>
-                    </div>
-
-                    <button
-                        onClick={handleGenerate}
-                        disabled={!prompt || isGenerating || !selectedBrandId}
-                        className={cn(
-                            "flex items-center gap-3 px-8 py-3.5 rounded-xl font-bold text-lg transition-all w-full md:w-auto justify-center",
-                            prompt && !isGenerating
-                                ? "bg-white text-black hover:scale-105 shadow-xl shadow-white/10 relative overflow-hidden group/btn"
-                                : "bg-white/5 text-muted-foreground cursor-not-allowed"
-                        )}
-                    >
-                        {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-                        {isGenerating ? 'Dreaming...' : 'Generate Asset'}
-
-                        {/* Shimmer Effect */}
-                        {prompt && !isGenerating && (
-                            <div className="absolute inset-0 -translate-x-full group-hover/btn:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                        )}
-                    </button>
-                </div>
-            </motion.div>
-
-            {/* Loading / Results View - AnimatePresence wrapper */}
-            <AnimatePresence mode="wait">
-                {isGenerating && !generatedImageUrl && (
+        <div className="h-[85vh] w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 p-1">
+            {/* Left Column: Controls (4 cols) */}
+            <div className="lg:col-span-4 flex flex-col h-full relative">
+                <div className="flex-1 flex flex-col justify-center space-y-8">
                     <motion.div
-                        key="loading"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="w-full aspect-video rounded-3xl bg-white/5 flex items-center justify-center border border-white/5 relative overflow-hidden"
+                        transition={{ duration: 0.5 }}
+                        className="space-y-4"
                     >
-                        {/* Skeleton Shimmer */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_2s_infinite]" />
+                        <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight text-foreground">
+                            Create<span className="text-primary">.</span>
+                        </h1>
+                        <p className="text-muted-foreground text-lg font-light leading-relaxed">
+                            Craft stunning visual assets tailored to your brand identity with a single prompt.
+                        </p>
+                    </motion.div>
 
-                        <div className="flex flex-col items-center gap-6 z-10">
-                            <div className="relative">
-                                <div className="w-20 h-20 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <Sparkles className="w-8 h-8 text-primary animate-pulse" />
-                                </div>
-                            </div>
-                            <p className="text-muted-foreground animate-pulse text-sm uppercase tracking-widest">Consulting Brand Bible...</p>
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.1 }}
+                        className={cn(
+                            "relative group rounded-3xl transition-all duration-300",
+                            isFocused ? "ring-2 ring-primary/20 bg-background shadow-2xl" : "bg-secondary/30 hover:bg-secondary/50"
+                        )}
+                    >
+                        <textarea
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            onFocus={() => setIsFocused(true)}
+                            onBlur={() => setIsFocused(false)}
+                            disabled={isGenerating}
+                            placeholder="Describe your vision..."
+                            className="w-full bg-transparent border-none text-foreground text-lg placeholder:text-muted-foreground/40 p-6 min-h-[220px] resize-none focus:ring-0 rounded-3xl leading-relaxed"
+                        />
+
+                        {/* Hidden gen type */}
+                        <div className="hidden">
+                            <select id="generationType" defaultValue="generation">
+                                <option value="generation">Generation</option>
+                            </select>
                         </div>
                     </motion.div>
-                )}
 
-                {generatedImageUrl && (
                     <motion.div
-                        key="result"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, type: 'spring' }}
-                        className="w-full rounded-3xl overflow-hidden glass-card shadow-2xl border border-white/10 group relative"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.2 }}
+                        className="space-y-4"
                     >
-                        {/* Image with subtle hover zoom */}
-                        <div className="overflow-hidden">
-                            <img src={generatedImageUrl} alt="Generated result" className="w-full h-auto transition-transform duration-700 group-hover:scale-105" />
+                        <div className="flex gap-3">
+                            <div className="relative flex-1 group">
+                                <select
+                                    value={selectedBrandId}
+                                    onChange={(e) => setSelectedBrandId(e.target.value)}
+                                    className="appearance-none w-full bg-background border border-border text-foreground text-sm font-medium pl-4 pr-10 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/10 hover:border-primary/30 transition-all cursor-pointer shadow-sm"
+                                >
+                                    {brands.length === 0 && <option value="">No Brands Found</option>}
+                                    {brands.map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none group-hover:text-primary transition-colors" />
+                            </div>
+
+                            <Link
+                                href="/dashboard/brand/create"
+                                className="w-14 bg-background border border-border rounded-2xl text-foreground hover:bg-muted hover:border-primary/30 transition-all flex items-center justify-center group shadow-sm"
+                                title="New Brand"
+                            >
+                                <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                            </Link>
                         </div>
 
-                        {/* Quick Actions Overlay */}
-                        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 via-black/60 to-transparent backdrop-blur-md opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-4 group-hover:translate-y-0">
-                            <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-                                <div>
-                                    <p className="text-white text-sm font-medium line-clamp-1 max-w-md mb-1">{prompt}</p>
-                                    <div className="flex gap-2">
-                                        <span className="text-xs bg-white/10 px-2 py-1 rounded text-white/70">1024x1024</span>
-                                        <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded">V2 Model</span>
+                        <button
+                            onClick={handleGenerate}
+                            disabled={!prompt || isGenerating || !selectedBrandId}
+                            className={cn(
+                                "w-full py-4 rounded-2xl font-bold text-base transition-all flex items-center justify-center gap-3 shadow-lg hover:shadow-xl active:scale-[0.98]",
+                                prompt && !isGenerating
+                                    ? "bg-primary text-primary-foreground shadow-primary/20 hover:bg-primary/90"
+                                    : "bg-muted text-muted-foreground cursor-not-allowed"
+                            )}
+                        >
+                            {isGenerating ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    <span>Creating Magic...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Wand2 className="w-5 h-5" />
+                                    <span>Generate Asset</span>
+                                </>
+                            )}
+                        </button>
+                    </motion.div>
+                </div>
+            </div>
+
+            {/* Right Column: Canvas (8 cols) */}
+            <div className="lg:col-span-8 relative">
+                <div className="absolute inset-0 bg-secondary/20 rounded-[2.5rem] border border-border/40 backdrop-blur-sm -z-10" />
+
+                <div className="h-full w-full rounded-[2.5rem] overflow-hidden relative flex items-center justify-center p-8">
+                    {/* Grid Background */}
+                    <div className="absolute inset-0 bg-[url('/grid-pattern.svg')] opacity-[0.03]" />
+
+                    <AnimatePresence mode="wait">
+                        {!generatedImageUrl && !isGenerating && (
+                            <motion.div
+                                key="empty"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ duration: 0.4 }}
+                                className="text-center space-y-6 max-w-md"
+                            >
+                                <div className="w-24 h-24 bg-background rounded-3xl flex items-center justify-center mx-auto shadow-xl shadow-black/5 rotate-3 border border-border/50">
+                                    <Sparkles className="w-10 h-10 text-primary/80" />
+                                </div>
+                                <div className="space-y-2">
+                                    <h3 className="text-2xl font-bold text-foreground tracking-tight">Ready to Dream</h3>
+                                    <p className="text-muted-foreground leading-relaxed">
+                                        Select a brand, enter a prompt, and watch your vision come to life in seconds.
+                                    </p>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {isGenerating && !generatedImageUrl && (
+                            <motion.div
+                                key="loading"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="flex flex-col items-center gap-8"
+                            >
+                                <div className="relative w-32 h-32">
+                                    <div className="absolute inset-0 rounded-full border-4 border-primary/20" />
+                                    <div className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <Sparkles className="w-12 h-12 text-primary animate-pulse" />
                                     </div>
                                 </div>
-                                <div className="flex gap-3">
-                                    <button className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-sm font-bold transition-colors border border-white/10">
-                                        Download
+                                <div className="text-center space-y-2">
+                                    <p className="text-lg font-medium text-foreground">Generating Asset...</p>
+                                    <p className="text-sm text-muted-foreground animate-pulse">Consulting brand guidelines</p>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {generatedImageUrl && (
+                            <motion.div
+                                key="result"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="relative w-full h-full flex items-center justify-center group"
+                            >
+                                <img
+                                    src={generatedImageUrl}
+                                    alt="Generated Result"
+                                    className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]"
+                                />
+
+                                <div className="absolute bottom-8 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-all translate-y-4 group-hover:translate-y-0 bg-black/80 backdrop-blur-md p-2 rounded-2xl border border-white/10 shadow-2xl">
+                                    <button className="px-5 py-2.5 rounded-xl text-white hover:bg-white/10 transition-colors flex items-center gap-2 text-sm font-medium">
+                                        <Download className="w-4 h-4" /> Download
                                     </button>
-                                    <button onClick={() => router.push('/dashboard/canvas')} className="px-6 py-2.5 bg-primary text-black hover:bg-primary/90 rounded-xl text-sm font-bold transition-all shadow-lg hover:shadow-primary/20">
-                                        Edit in Canvas
+                                    <div className="w-px h-6 bg-white/20" />
+                                    <button
+                                        onClick={() => window.open(generatedImageUrl, '_blank')}
+                                        className="px-5 py-2.5 rounded-xl text-white hover:bg-white/10 transition-colors flex items-center gap-2 text-sm font-medium"
+                                    >
+                                        <ExternalLink className="w-4 h-4" /> Open
+                                    </button>
+                                    <div className="w-px h-6 bg-white/20" />
+                                    <button
+                                        onClick={() => router.push('/dashboard/canvas')}
+                                        className="px-5 py-2.5 bg-white text-black rounded-xl hover:bg-white/90 transition-colors flex items-center gap-2 text-sm font-bold shadow-lg"
+                                    >
+                                        <Edit className="w-4 h-4" /> Edit in Canvas
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </div>
         </div>
     )
 }
