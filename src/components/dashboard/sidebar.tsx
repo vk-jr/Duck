@@ -7,26 +7,27 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-    LayoutDashboard,
-    ImagePlus,
-    Layers,
-    Settings,
+    LayoutGrid,
+    Sparkles,
+    Palette,
+    Sliders,
     Bird,
     LogOut,
-    Palette,
+    Briefcase,
     ChevronLeft,
     ChevronRight,
-    ShieldCheck
+    ScanEye,
+    Image as ImageIcon
 } from 'lucide-react'
 
 const navItems = [
-    { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Generator', href: '/dashboard/generator', icon: ImagePlus },
-    { name: 'Canvas', href: '/dashboard/canvas', icon: Layers },
-    { name: 'Gallery', href: '/dashboard/gallery', icon: ImagePlus },
-    { name: 'Quality Checker', href: '/dashboard/quality-checker', icon: ShieldCheck },
-    { name: 'Brands', href: '/dashboard/brand/create', icon: Palette },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+    { name: 'Overview', href: '/dashboard', icon: LayoutGrid },
+    { name: 'Generator', href: '/dashboard/generator', icon: Sparkles },
+    { name: 'Canvas', href: '/dashboard/canvas', icon: Palette },
+    { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon },
+    { name: 'Quality Checker', href: '/dashboard/quality-checker', icon: ScanEye },
+    { name: 'Brands', href: '/dashboard/brand/create', icon: Briefcase },
+    { name: 'Settings', href: '/dashboard/settings', icon: Sliders },
 ]
 
 interface SidebarProps {
