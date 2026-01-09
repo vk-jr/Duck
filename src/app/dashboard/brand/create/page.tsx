@@ -1,9 +1,11 @@
 'use client'
 
 import { useFormStatus } from 'react-dom'
-import { Bird, UploadCloud, Loader2, AlertCircle } from 'lucide-react'
+import { UploadCloud, Loader2, AlertCircle } from 'lucide-react'
 import { createBrand } from './actions'
 import { useActionState } from 'react'
+import { motion } from 'framer-motion'
+import { cn } from '@/lib/utils'
 
 const initialState = {
     message: '',
@@ -17,15 +19,15 @@ function SubmitButton() {
         <button
             type="submit"
             disabled={pending}
-            className="w-full bg-primary text-black font-bold py-3 rounded-xl hover:scale-[1.02] transition-transform shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-xl hover:scale-[1.01] active:scale-[0.99] transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
         >
             {pending ? (
                 <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Creating Brand...
+                    Creating Identity...
                 </>
             ) : (
-                'Create Brand'
+                'Create Brand Identity'
             )}
         </button>
     )
@@ -35,50 +37,83 @@ export default function CreateBrandPage() {
     const [state, formAction] = useActionState(createBrand, initialState)
 
     return (
-        <div className="max-w-2xl mx-auto space-y-8">
-            <div className="space-y-2 text-center">
-                <h2 className="text-3xl font-bold text-white tracking-tight">New Brand Style</h2>
-                <p className="text-muted-foreground">Define a new visual identity for your assets.</p>
-            </div>
+        <div className="h-[85vh] w-full flex flex-col items-center justify-center p-6">
+            <div className="w-full max-w-xl space-y-8">
+                <div className="space-y-2 text-center">
+                    <motion.h2
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="text-4xl font-extrabold text-foreground tracking-tight"
+                    >
+                        New Brand Style
+                    </motion.h2>
+                    <motion.p
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, delay: 0.1 }}
+                        className="text-lg text-muted-foreground"
+                    >
+                        Define a new unique visual identity for your assets.
+                    </motion.p>
+                </div>
 
-            <div className="glass-card p-8 rounded-2xl">
-                <form action={formAction} className="space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">Brand Name</label>
-                        <input
-                            name="name"
-                            type="text"
-                            placeholder="e.g., Acme Corp, Retro Future"
-                            required
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-4 py-3 text-white focus:ring-1 focus:ring-primary focus:outline-none"
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-white">Reference Images</label>
-                        <div className="border-2 border-dashed border-white/10 rounded-xl p-8 flex flex-col items-center justify-center gap-4 hover:bg-white/5 transition-colors cursor-pointer group">
-                            <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-                                <UploadCloud className="w-6 h-6 text-muted-foreground" />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-sm font-medium text-white">Click to upload brand assets</p>
-                                <p className="text-xs text-muted-foreground">Upload 10-20 images for best results</p>
-                            </div>
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                    className="bg-card border border-border/50 p-8 rounded-3xl shadow-2xl shadow-black/5"
+                >
+                    <form action={formAction} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-foreground ml-1">Brand Name</label>
+                            <input
+                                name="name"
+                                type="text"
+                                placeholder="e.g., Acme Corp, Retro Future"
+                                required
+                                className="w-full bg-secondary/50 border border-border text-foreground px-5 py-3.5 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all placeholder:text-muted-foreground/50"
+                            />
                         </div>
-                        <p className="text-xs text-yellow-500/80 mt-2">
-                            * Note: Reference image analysis will be connected to n8n in the next step.
-                        </p>
-                    </div>
 
-                    {state?.error && (
-                        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-400 text-sm">
-                            <AlertCircle className="w-4 h-4" />
-                            {state.error}
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-foreground ml-1">Reference Images</label>
+                            <div className="relative border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:bg-secondary/30 hover:border-primary/50 transition-all cursor-pointer group bg-secondary/10">
+                                <div className="w-14 h-14 bg-background rounded-full flex items-center justify-center shadow-sm border border-border group-hover:scale-110 group-hover:shadow-md transition-all">
+                                    <UploadCloud className="w-7 h-7 text-primary/80" />
+                                </div>
+                                <div className="text-center space-y-0.5">
+                                    <p className="font-semibold text-foreground text-sm">Click to upload brand assets</p>
+                                    <p className="text-xs text-muted-foreground">Upload 10-20 images for best results</p>
+                                </div>
+                                <input
+                                    type="file"
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                    accept="image/*"
+                                    multiple
+                                />
+                            </div>
+                            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground text-center pt-2 opacity-60">
+                                Zero-shot analysis • Automatic Style Extraction
+                            </p>
                         </div>
-                    )}
 
-                    <SubmitButton />
-                </form>
+                        {state?.error && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="p-4 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-3 text-destructive text-sm font-medium"
+                            >
+                                <AlertCircle className="w-5 h-5" />
+                                {state.error}
+                            </motion.div>
+                        )}
+
+                        <div className="pt-2">
+                            <SubmitButton />
+                        </div>
+                    </form>
+                </motion.div>
             </div>
         </div>
     )

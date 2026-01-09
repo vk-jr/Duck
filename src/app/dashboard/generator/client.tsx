@@ -192,7 +192,7 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                         </div>
 
                         {/* Create New Link */}
-                        <Link href="/dashboard/brand/create" className="text-xs font-bold text-black bg-primary px-4 py-2.5 rounded-xl hover:bg-primary/80 transition-all flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-[1.02]">
+                        <Link href="/dashboard/brand/create" className="text-xs font-bold text-primary-foreground bg-primary px-4 py-2.5 rounded-xl hover:bg-primary/80 transition-all flex items-center gap-2 shadow-sm hover:shadow-md hover:scale-[1.02]">
                             <Plus className="w-4 h-4" /> New Brand
                         </Link>
                     </div>

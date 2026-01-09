@@ -195,7 +195,7 @@ export default function GalleryClient({
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div className="space-y-1">
-                    <h2 className="text-3xl font-bold tracking-tight text-white">My Gallery</h2>
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground">My Gallery</h2>
                     <p className="text-muted-foreground">Your collection of AI-generated assets.</p>
                 </div>
 
@@ -231,8 +231,8 @@ export default function GalleryClient({
                                 className={cn(
                                     "px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap",
                                     selectedBrandId === 'ALL'
-                                        ? "bg-white text-black"
-                                        : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                                 )}
                             >
                                 All Brands
@@ -244,8 +244,8 @@ export default function GalleryClient({
                                     className={cn(
                                         "px-3 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap",
                                         selectedBrandId === brand.id
-                                            ? "bg-white text-black"
-                                            : "bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-white"
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground"
                                     )}
                                 >
                                     {brand.name}
