@@ -160,8 +160,6 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                         defaultValue="generation"
                     >
                         <option value="generation">Generation</option>
-                        <option value="segmentation">Segmentation</option>
-                        <option value="quality_check">Quality Check</option>
                     </select>
                 </div>
                 <textarea
