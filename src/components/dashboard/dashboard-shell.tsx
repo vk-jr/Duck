@@ -20,8 +20,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <motion.main
                 initial={{ marginLeft: 256 }}
                 animate={{ marginLeft: isCollapsed ? 80 : 256 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                className="flex-1 min-h-screen transition-all"
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="flex-1 min-h-screen"
             >
                 {children}
             </motion.main>
