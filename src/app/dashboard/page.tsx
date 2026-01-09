@@ -59,7 +59,7 @@ export default async function DashboardPage() {
                         <Layers className="w-6 h-6" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-lg text-foreground font-serif">Duck Canvas</h3>
+                        <h3 className="font-bold text-lg text-foreground font-serif">Content Beta Canvas</h3>
                         <p className="text-sm text-muted-foreground">Deconstruct and segment your images.</p>
                     </div>
                 </div>

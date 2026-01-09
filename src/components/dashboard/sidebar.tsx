@@ -60,7 +60,7 @@ export function Sidebar({ isCollapsed, setIsCollapsed }: SidebarProps) {
                                 transition={{ duration: 0.2 }}
                                 className="text-foreground font-serif overflow-hidden"
                             >
-                                Duck
+                                Content Beta
                             </motion.span>
                         )}
                     </AnimatePresence>

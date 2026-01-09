@@ -11,7 +11,7 @@ export default function LandingPage() {
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
               <Bird className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-serif font-bold tracking-tight">Duck</span>
+            <span className="text-xl font-serif font-bold tracking-tight">Content Beta</span>
           </div>
           <div className="flex items-center gap-6">
             <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
@@ -108,7 +108,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
             <Bird className="w-5 h-5 text-muted-foreground" />
-            <span className="text-muted-foreground font-medium">© 2024 Duck SaaS</span>
+            <span className="text-muted-foreground font-medium">© 2024 Content Beta</span>
           </div>
           <div className="flex gap-8 text-sm text-muted-foreground">
             <Link href="#" className="hover:text-foreground transition-colors">Privacy</Link>

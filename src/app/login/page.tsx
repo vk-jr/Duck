@@ -17,7 +17,7 @@ export default function LoginPage({
                     <div className="w-16 h-16 bg-primary rounded-xl flex items-center justify-center mb-2 shadow-lg shadow-primary/20">
                         <Bird className="w-8 h-8 text-black" />
                     </div>
-                    <h2 className="text-3xl font-bold tracking-tight text-white">Duck SaaS</h2>
+                    <h2 className="text-3xl font-bold tracking-tight text-white">Content Beta</h2>
                     <p className="text-muted-foreground text-sm">
                         Premium Brand Asset Generation
                     </p>

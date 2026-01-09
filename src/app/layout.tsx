@@ -16,7 +16,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Duck | Premium Brand AI",
+  title: "Content Beta | Premium Brand AI",
   description: "Generate and deconstruct brand assets with style.",
 };
 
