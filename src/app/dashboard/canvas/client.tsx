@@ -179,59 +179,72 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                 },
                 (payload: any) => {
                     const layer = payload.new
-                    console.log('Received Layer Update:', layer)
-
-                    // Check for completion status (case-insensitive)
                     if (layer.status?.toLowerCase() !== 'generated') return
-
                     const pending = pendingGenerations.current.get(layer.id)
-                    if (pending) {
-                        const { sourceNodeId, instruction } = pending;
-
-                        // Find Source Node Position
-                        setNodes((currentNodes) => {
-                            const sourceNode = currentNodes.find(n => n.id === sourceNodeId)
-                            if (!sourceNode) return currentNodes
-
-                            const newNodeId = `layer-${layer.id}`
-                            if (currentNodes.some(n => n.id === newNodeId)) return currentNodes
-
-                            const newPosition = {
-                                x: sourceNode.position.x + 400,
-                                y: sourceNode.position.y
-                            }
-
-                            const newNode: Node = {
-                                id: newNodeId,
-                                type: 'imageNode',
-                                position: newPosition,
-                                data: {
-                                    label: `Generated: ${instruction}`,
-                                    src: layer.layer_url,
-                                    type: 'generated',
-                                    imageId: layer.generated_image_id
-                                },
-                            }
-
-                            const newEdge: Edge = {
-                                id: `e-${sourceNodeId}-${newNodeId}`,
-                                source: sourceNodeId,
-                                target: newNodeId,
-                                animated: true,
-                                style: { stroke: '#EAB308', strokeWidth: 2 },
-                            }
-
-                            setEdges((eds) => addEdge(newEdge, eds))
-                            pendingGenerations.current.delete(layer.id)
-                            return [...currentNodes, newNode]
-                        })
-                    }
+                    if (pending) updatePendingNode(pending.sourceNodeId, layer)
                 }
             )
             .subscribe()
 
+        // Helper to update node (shared by Realtime and Polling)
+        const updatePendingNode = (sourceNodeId: string, layer: any) => {
+            setNodes((currentNodes) => currentNodes.map(node => {
+                if (node.id === sourceNodeId) {
+                    // Only update if it's still generating
+                    if (node.data.status !== 'generating') return node
+
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            src: layer.layer_url,
+                            status: 'generated',
+                            label: layer.metadata?.prompt || node.data.label
+                        }
+                    }
+                }
+                return node
+            }))
+
+            setEdges((currentEdges) => currentEdges.map(edge => {
+                if (edge.target === sourceNodeId) {
+                    return {
+                        ...edge,
+                        style: { stroke: '#EAB308', strokeWidth: 2 }
+                    }
+                }
+                return edge
+            }))
+
+            pendingGenerations.current.delete(layer.id)
+        }
+
+        // Polling Fallback (Every 3 seconds)
+        // This ensures that even if Realtime RLS fails, we can still fetch the image
+        const intervalId = setInterval(async () => {
+            if (pendingGenerations.current.size === 0) return
+
+            // Check each pending layer
+            for (const [layerId, pending] of Array.from(pendingGenerations.current.entries())) {
+                const { getLayerStatus } = await import('./actions') // Dynamic import to avoid server-action build issues in client effect if any
+                const result = await getLayerStatus(layerId)
+
+                if (result.success && result.data && result.data.status?.toLowerCase() === 'generated') {
+                    // Construct layer-like object from result
+                    const layer = {
+                        id: layerId,
+                        layer_url: result.data.layer_url,
+                        metadata: result.data.metadata
+                    }
+                    updatePendingNode(pending.sourceNodeId, layer)
+                }
+            }
+        }, 3000)
+
+
         return () => {
             supabase.removeChannel(channel)
+            clearInterval(intervalId)
         }
     }, [setNodes, setEdges])
 
@@ -305,6 +318,37 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         const imageId = selectedNode.data.imageId || selectedNode.id
         const sourceNodeId = selectedNode.id
 
+        // Create Immediate "Loading" Node
+        const tempNodeId = `layer-temp-${Date.now()}`
+        const newPosition = {
+            x: selectedNode.position.x + 400,
+            y: selectedNode.position.y
+        }
+
+        const newNode: Node = {
+            id: tempNodeId,
+            type: 'imageNode',
+            position: newPosition,
+            data: {
+                label: `Generating: ${text}`,
+                src: '', // Empty src triggers loading/placeholder in updated ImageNode
+                type: 'generated',
+                imageId: imageId,
+                status: 'generating' // Trigger loading state
+            },
+        }
+
+        const newEdge: Edge = {
+            id: `e-${sourceNodeId}-${tempNodeId}`,
+            source: sourceNodeId,
+            target: tempNodeId,
+            animated: true,
+            style: { stroke: '#EAB308', strokeWidth: 2, strokeDasharray: '5,5' }, // Dotted line for pending
+        }
+
+        setNodes((nds) => nds.concat(newNode))
+        setEdges((eds) => addEdge(newEdge, eds))
+
         const result = await processCanvasImage({
             imageId,
             imageUrl,
@@ -317,12 +361,22 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
 
         if (result.error) {
             alert(result.error)
+            // Remove the temp node on error
+            setNodes((nds) => nds.filter(n => n.id !== tempNodeId))
+            setEdges((eds) => eds.filter(e => e.id !== newEdge.id))
         } else {
             const layerId = result.layerId
-            alert(`Sent to processing engine! Layer ID: ${layerId}`)
+            // alert(`Sent to processing engine! Layer ID: ${layerId}`) // Removed alert for smoother flow
 
             if (layerId) {
-                pendingGenerations.current.set(layerId, { sourceNodeId, instruction: text })
+                // Map the real Layer ID to our Temp Node ID so we can update it later
+                pendingGenerations.current.set(layerId, { sourceNodeId: tempNodeId, instruction: text })
+
+                // OPTIONAL: Update the node ID to match the layer ID? 
+                // It's cleaner to keep the temp ID or update it. 
+                // For simplicity, we'll keep the temp ID for now and just update its data when the event fires.
+                // Actually, let's update the node's internal reference if possible, but ReactFlow IDs are static.
+                // We will rely on `pendingGenerations` map: LayerID -> NodeID
             }
         }
     }

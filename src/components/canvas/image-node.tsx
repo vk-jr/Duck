@@ -1,8 +1,9 @@
 import { memo } from 'react'
 import { Handle, Position, useReactFlow } from 'reactflow'
 import { Bird, X, Pencil } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
-function ImageNode({ id, data }: { id: string, data: { label: string, src: string, type: 'layer' | 'background', onEdit?: (id: string) => void } }) {
+function ImageNode({ id, data }: { id: string, data: { label: string, src: string, type: 'layer' | 'background', status?: string, onEdit?: (id: string) => void } }) {
     const { setNodes } = useReactFlow()
 
     const deleteNode = (e: React.MouseEvent) => {
@@ -20,9 +21,25 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
     return (
         <div className="relative group">
             {/* Minimal Image Container */}
-            <div className="rounded-lg overflow-hidden border-2 border-transparent group-hover:border-primary/50 ring-1 ring-white/10 shadow-none transition-none bg-transparent transform-gpu backface-hidden translate-z-0">
-                {!data.src ? (
-                    <div className="p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-zinc-900">
+            <div className={cn(
+                "rounded-lg overflow-hidden border-2 border-transparent group-hover:border-primary/50 ring-1 ring-white/10 shadow-none transition-none bg-zinc-900 transform-gpu backface-hidden translate-z-0",
+                data.status === 'generating' && "ring-primary/50 border-primary/20"
+            )}>
+                {data.status === 'generating' ? (
+                    <div className="w-[300px] h-[300px] flex flex-col items-center justify-center gap-4 bg-zinc-900/50 backdrop-blur-sm relative overflow-hidden">
+                        {/* Shimmer Effect */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_2s_infinite]" />
+
+                        <div className="relative">
+                            <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <Bird className="w-5 h-5 opacity-20 animate-pulse" />
+                            </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground animate-pulse font-medium">Generating Layer...</span>
+                    </div>
+                ) : !data.src ? (
+                    <div className="p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-zinc-900 min-w-[200px] min-h-[200px]">
                         <Bird className="w-8 h-8 opacity-20" />
                         <span className="text-[10px]">No Image</span>
                     </div>

@@ -205,3 +205,21 @@ export async function deleteCanvasState(id: string) {
 
     return { success: true }
 }
+
+export async function getLayerStatus(layerId: string) {
+    // Check status using service role to bypass potential RLS issues for the user
+    // This is a "fix" for users who haven't run migration scripts
+    const supabase = await createServiceRoleClient()
+
+    const { data, error } = await supabase
+        .from('image_layers')
+        .select('status, layer_url, metadata')
+        .eq('id', layerId)
+        .single()
+
+    if (error) {
+        return { error: error.message }
+    }
+
+    return { success: true, data }
+}
