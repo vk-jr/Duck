@@ -37,32 +37,53 @@ export default function CreateBrandPage() {
     const [state, formAction] = useActionState(createBrand, initialState)
 
     return (
-        <div className="h-[85vh] w-full flex flex-col items-center justify-center p-6">
-            <div className="w-full max-w-xl space-y-8">
-                <div className="space-y-2 text-center">
-                    <motion.h2
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+        <div className="h-[85vh] w-full flex items-center justify-center p-6 md:p-12">
+            <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-12 items-center">
+                {/* Left Side: Text Content */}
+                <div className="space-y-6 max-w-lg">
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="text-4xl font-extrabold text-foreground tracking-tight"
                     >
-                        New Brand Style
-                    </motion.h2>
-                    <motion.p
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, delay: 0.1 }}
-                        className="text-lg text-muted-foreground"
+                        <h2 className="text-5xl md:text-6xl font-extrabold text-foreground tracking-tight leading-none mb-4">
+                            New Brand<br />Style
+                        </h2>
+                        <p className="text-xl text-muted-foreground leading-relaxed">
+                            Define a new unique visual identity for your AI assets. Upload your reference images and let our AI handle the rest.
+                        </p>
+                    </motion.div>
+
+                    {/* Decorative Elements or Steps could go here */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.3, duration: 0.5 }}
+                        className="flex gap-4 pt-4"
                     >
-                        Define a new unique visual identity for your assets.
-                    </motion.p>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-sm font-bold text-foreground">1. Name</span>
+                            <span className="text-xs text-muted-foreground">Main Identifier</span>
+                        </div>
+                        <div className="w-px h-10 bg-border" />
+                        <div className="flex flex-col gap-1">
+                            <span className="text-sm font-bold text-foreground">2. Upload</span>
+                            <span className="text-xs text-muted-foreground">Assets</span>
+                        </div>
+                        <div className="w-px h-10 bg-border" />
+                        <div className="flex flex-col gap-1">
+                            <span className="text-sm font-bold text-foreground">3. Create</span>
+                            <span className="text-xs text-muted-foreground">Analysis</span>
+                        </div>
+                    </motion.div>
                 </div>
 
+                {/* Right Side: Form Card */}
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, scale: 0.95, x: 20 }}
+                    animate={{ opacity: 1, scale: 1, x: 0 }}
                     transition={{ duration: 0.5, delay: 0.2 }}
-                    className="bg-card border border-border/50 p-8 rounded-3xl shadow-2xl shadow-black/5"
+                    className="bg-card border border-border/50 p-8 md:p-10 rounded-[2rem] shadow-2xl shadow-black/5"
                 >
                     <form action={formAction} className="space-y-6">
                         <div className="space-y-2">
@@ -78,11 +99,11 @@ export default function CreateBrandPage() {
 
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-foreground ml-1">Reference Images</label>
-                            <div className="relative border-2 border-dashed border-border rounded-xl p-8 flex flex-col items-center justify-center gap-3 hover:bg-secondary/30 hover:border-primary/50 transition-all cursor-pointer group bg-secondary/10">
-                                <div className="w-14 h-14 bg-background rounded-full flex items-center justify-center shadow-sm border border-border group-hover:scale-110 group-hover:shadow-md transition-all">
-                                    <UploadCloud className="w-7 h-7 text-primary/80" />
+                            <div className="relative border-2 border-dashed border-border rounded-xl p-8 md:p-12 flex flex-col items-center justify-center gap-4 hover:bg-secondary/30 hover:border-primary/50 transition-all cursor-pointer group bg-secondary/10">
+                                <div className="w-16 h-16 bg-background rounded-full flex items-center justify-center shadow-sm border border-border group-hover:scale-110 group-hover:shadow-md transition-all">
+                                    <UploadCloud className="w-8 h-8 text-primary/80" />
                                 </div>
-                                <div className="text-center space-y-0.5">
+                                <div className="text-center space-y-1">
                                     <p className="font-semibold text-foreground text-sm">Click to upload brand assets</p>
                                     <p className="text-xs text-muted-foreground">Upload 10-20 images for best results</p>
                                 </div>
