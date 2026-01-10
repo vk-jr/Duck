@@ -29,9 +29,10 @@ interface MemoryPanelProps {
     isOpen: boolean
     onClose: () => void
     onRestore: (state: CanvasState) => void
+    refreshTrigger?: number // New prop
 }
 
-function MemoryPanel({ isOpen, onClose, onRestore }: MemoryPanelProps) {
+function MemoryPanel({ isOpen, onClose, onRestore, refreshTrigger = 0 }: MemoryPanelProps) {
     const [states, setStates] = useState<CanvasState[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -49,7 +50,7 @@ function MemoryPanel({ isOpen, onClose, onRestore }: MemoryPanelProps) {
         if (isOpen) {
             fetchStates()
         }
-    }, [isOpen])
+    }, [isOpen, refreshTrigger]) // Refetch when trigger changes
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation()
@@ -104,7 +105,7 @@ function MemoryPanel({ isOpen, onClose, onRestore }: MemoryPanelProps) {
                                 <div className="text-center py-10 text-muted-foreground">
                                     <History className="w-12 h-12 mx-auto mb-3 opacity-20" />
                                     <p>No saved states yet.</p>
-                                    <p className="text-xs opacity-60">Canvas auto-saves as you work.</p>
+                                    <p className="text-xs opacity-60">Click "Save Board" to create a checkpoint.</p>
                                 </div>
                             ) : (
                                 states.map((state) => (

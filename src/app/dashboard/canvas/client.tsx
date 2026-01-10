@@ -99,63 +99,67 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
     // Track pending generations: Map<layerId, { sourceNodeId: string, instruction: string }>
     const pendingGenerations = useRef<Map<string, { sourceNodeId: string, instruction: string }>>(new Map())
 
-    // Auto-save Logic
-    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    // Auto-save Logic - DISABLED
+    // const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-    const triggerSave = useCallback(() => {
-        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    const [memoryRefreshTrigger, setMemoryRefreshTrigger] = useState(0)
+    const [isSaving, setIsSaving] = useState(false) // Add saving state
 
-        saveTimeoutRef.current = setTimeout(async () => {
-            const viewport = getViewport()
+    const handleManualSave = useCallback(async () => {
+        setIsSaving(true)
+        const viewport = getViewport()
+        // Sanitize nodes/edges as before... (reusing logic or extracting helper would be good, but inline for now to minimize diff)
 
-            // Sanitize nodes to remove non-serializable properties (like internal symbols)
-            const sanitizedNodes = nodes.map(node => ({
-                id: node.id,
-                type: node.type,
-                position: node.position,
-                data: node.data,
-                width: node.width,
-                height: node.height,
-                selected: node.selected,
-                positionAbsolute: node.positionAbsolute,
-                dragging: node.dragging
-            }))
+        // Sanitize nodes
+        const sanitizedNodes = nodes.map(node => ({
+            id: node.id,
+            type: node.type,
+            position: node.position,
+            data: node.data,
+            width: node.width,
+            height: node.height,
+            selected: node.selected,
+            positionAbsolute: node.positionAbsolute,
+            dragging: node.dragging
+        }))
 
-            const sanitizedEdges = edges.map(edge => ({
-                id: edge.id,
-                source: edge.source,
-                target: edge.target,
-                sourceHandle: edge.sourceHandle,
-                targetHandle: edge.targetHandle,
-                animated: edge.animated,
-                style: edge.style,
-                markerEnd: edge.markerEnd,
-                type: edge.type,
-                data: edge.data,
-                selected: edge.selected
-            }))
+        // Sanitize edges
+        const sanitizedEdges = edges.map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle,
+            targetHandle: edge.targetHandle,
+            animated: edge.animated,
+            style: edge.style,
+            markerEnd: edge.markerEnd,
+            type: edge.type,
+            data: edge.data,
+            selected: edge.selected
+        }))
 
-            const state = {
-                nodes: JSON.parse(JSON.stringify(sanitizedNodes)), // Deep copy to ensure no refs
-                edges: JSON.parse(JSON.stringify(sanitizedEdges)),
-                viewport
-            }
+        const state = {
+            nodes: JSON.parse(JSON.stringify(sanitizedNodes)),
+            edges: JSON.parse(JSON.stringify(sanitizedEdges)),
+            viewport
+        }
 
-            // Only save if there's something to save
-            if (nodes.length === 0 && edges.length === 0) return
-
-            console.log('Auto-saving canvas state...')
-            const result = await saveCanvasState(state)
-            if (result.success) {
-                setLastSaved(new Date())
-            }
-        }, 2000) // Debounce 2s
+        const result = await saveCanvasState(state)
+        setIsSaving(false)
+        if (result.success) {
+            setLastSaved(new Date())
+            setMemoryRefreshTrigger(prev => prev + 1) // Trigger memory refresh
+            // Optionally open memory panel to show success? User asked for "shown in memory column"
+            // setIsMemoryOpen(true) 
+        } else {
+            alert('Failed to save board')
+        }
     }, [nodes, edges, getViewport])
 
-    // Trigger save on changes
-    useEffect(() => {
-        triggerSave()
-    }, [nodes, edges, triggerSave])
+    // Trigger save on changes -- REMOVED
+    // useEffect(() => {
+    //    triggerSave()
+    // }, [nodes, edges, triggerSave])
 
     const onRestoreState = useCallback((state: any) => {
         if (state.nodes) setNodes(state.nodes)
@@ -163,6 +167,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         if (state.viewport) setViewport(state.viewport)
         setIsMemoryOpen(false)
     }, [setNodes, setEdges, setViewport])
+
 
 
     // Listen for Realtime Updates from Supabase
@@ -480,6 +485,44 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
     )
 
 
+    // File Upload Handler
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const handleUploadClick = () => {
+        fileInputRef.current?.click()
+    }
+
+    const onFileInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files
+        if (!files || files.length === 0) return
+
+        const file = files[0]
+        const reader = new FileReader()
+
+        reader.onload = (e) => {
+            const src = e.target?.result as string
+            const viewport = getViewport()
+            // Place closer to viewport center but slightly offset
+            const position = {
+                x: (-viewport.x + 100) / viewport.zoom,
+                y: (-viewport.y + 100) / viewport.zoom
+            }
+
+            const newNode: Node = {
+                id: `upload-${Date.now()}`,
+                type: 'imageNode',
+                position,
+                data: { label: file.name, src, type: 'upload' },
+            }
+            setNodes((nds) => nds.concat(newNode))
+        }
+        reader.readAsDataURL(file)
+
+        // Reset input
+        event.target.value = ''
+    }, [getViewport, setNodes])
+
+
     return (
         <div ref={canvasContainerRef} className="flex h-[calc(100vh-6rem)] w-full rounded-2xl overflow-hidden border border-border shadow-2xl bg-card relative">
 
@@ -516,8 +559,18 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                             <div className="px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-foreground/80 border-r border-border">
                                 <MousePointer2 className="w-3 h-3" /> Select
                             </div>
-                            <div className="px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground hover:bg-accent cursor-pointer transition-colors">
+                            <div
+                                onClick={handleUploadClick}
+                                className="px-3 py-1.5 flex items-center gap-2 text-xs font-medium text-muted-foreground hover:bg-accent cursor-pointer transition-colors"
+                            >
                                 <Upload className="w-3 h-3" /> Upload
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={onFileInputChange}
+                                />
                             </div>
                         </div>
                         {/* Memory/History Button */}
@@ -547,8 +600,13 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                         >
                             {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
                         </button>
-                        <button className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm">
-                            <Save className="w-4 h-4" /> Save Board
+                        <button
+                            onClick={handleManualSave}
+                            disabled={isSaving}
+                            className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isSaving ? <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" /> : <Save className="w-4 h-4" />}
+                            {isSaving ? 'Saving...' : 'Save Board'}
                         </button>
                         <button
                             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -571,7 +629,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                     onDrop={onDrop}
                     onNodeClick={onNodeClick}
                     onPaneClick={onPaneClick}
-                    onMoveEnd={triggerSave} // Trigger save when viewport changes end
+                    // onMoveEnd={triggerSave} // Disabled auto-save on move
                     nodeTypes={nodeTypes}
 
                     minZoom={0.1}
@@ -603,6 +661,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                     isOpen={isMemoryOpen}
                     onClose={() => setIsMemoryOpen(false)}
                     onRestore={onRestoreState}
+                    refreshTrigger={memoryRefreshTrigger}
                 />
             </div>
 

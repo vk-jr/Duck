@@ -143,6 +143,7 @@ export async function saveCanvasState(state: any) {
     const { data, error } = await supabase
         .from('canvas_states')
         .insert({
+            user_id: user.id, // Add user_id so RLS allows reading it back
             brand_id: brandId,
             nodes: state.nodes,
             edges: state.edges,
