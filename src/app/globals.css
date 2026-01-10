@@ -170,6 +170,37 @@
   --ring: #FFFFFF;
 }
 
+.brand {
+  /* Brand Mode (Content Beta) */
+  --background: #111111;
+  --foreground: #F4F4F4;
+
+  --card: #0F172A;
+  --card-foreground: #F4F4F4;
+
+  --popover: #0F172A;
+  --popover-foreground: #F4F4F4;
+
+  --primary: #F9FF49;
+  --primary-foreground: #111111;
+
+  --secondary: #1E293B;
+  --secondary-foreground: #F4F4F4;
+
+  --muted: #1E293B;
+  --muted-foreground: #94A3B8;
+
+  --accent: #1E293B;
+  --accent-foreground: #F4F4F4;
+
+  --destructive: #EF4444;
+  --destructive-foreground: #FAFAFA;
+
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #F9FF49;
+}
+
 /* Glassmorphism Utilities - Updated for Light Mode compatibility */
 .glass {
   @apply bg-white/70 backdrop-blur-xl border border-black/5 shadow-xl;
