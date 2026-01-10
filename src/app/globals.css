@@ -154,12 +154,13 @@
 }
 
 /* Global transitions for theme switching - targeted only at colors to prevent layout thrashing */
+/* Global transitions for theme switching - targeted only at colors to prevent layout thrashing */
 *,
 ::before,
 ::after {
   transition-property: background-color, border-color, color, fill, stroke, transform, opacity, box-shadow;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 500ms;
+  transition-duration: 700ms;
 }
 
 /* React Flow Customization */
@@ -221,5 +222,5 @@
 
 html {
   background-color: var(--background);
-  transition: background-color 0.3s ease;
+  transition: background-color 1s ease-in-out;
 }
