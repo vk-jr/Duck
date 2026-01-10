@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, memo } from 'react'
 import { History, Trash2, RotateCcw, X, Loader2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
@@ -31,7 +31,7 @@ interface MemoryPanelProps {
     onRestore: (state: CanvasState) => void
 }
 
-export default function MemoryPanel({ isOpen, onClose, onRestore }: MemoryPanelProps) {
+function MemoryPanel({ isOpen, onClose, onRestore }: MemoryPanelProps) {
     const [states, setStates] = useState<CanvasState[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -145,3 +145,5 @@ export default function MemoryPanel({ isOpen, onClose, onRestore }: MemoryPanelP
         </AnimatePresence>
     )
 }
+
+export default memo(MemoryPanel)

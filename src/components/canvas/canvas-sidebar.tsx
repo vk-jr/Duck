@@ -1,6 +1,6 @@
 import { GripVertical, Layers, Wand2 } from 'lucide-react'
 import { Node } from 'reactflow'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { cn } from '@/lib/utils'
 
 interface GeneratedImage {
@@ -27,7 +27,7 @@ interface CanvasSidebarProps {
     onLayerSelect?: (id: string | null) => void // New Prop
 }
 
-export default function CanvasSidebar({
+function CanvasSidebar({
     images,
     layers = [],
     selectedNode,
@@ -220,3 +220,5 @@ export default function CanvasSidebar({
         </aside>
     )
 }
+
+export default memo(CanvasSidebar)
