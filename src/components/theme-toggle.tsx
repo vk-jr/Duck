@@ -43,15 +43,12 @@ export function ThemeToggle() {
             <span
                 className={`
           absolute flex items-center justify-center
-          h-6 w-6 rounded-full bg-background shadow-md ring-0 transition-all duration-300 ease-spring
+          h-6 w-6 rounded-full bg-background shadow-md ring-0 transition-transform duration-500 ease-[cubic-bezier(0.25,0.1,0.25,1)]
           ${isDark ? "translate-x-9" : "translate-x-1"}
         `}
             >
-                {isDark ? (
-                    <Moon className="h-3.5 w-3.5 text-foreground fill-current" />
-                ) : (
-                    <Sun className="h-3.5 w-3.5 text-orange-500 fill-current" />
-                )}
+                <Moon className={`absolute h-3.5 w-3.5 text-foreground fill-current transition-all duration-500 ${isDark ? 'scale-100 rotate-0' : 'scale-0 -rotate-90'}`} />
+                <Sun className={`absolute h-3.5 w-3.5 text-orange-500 fill-current transition-all duration-500 ${!isDark ? 'scale-100 rotate-0' : 'scale-0 rotate-90'}`} />
             </span>
         </button>
     )

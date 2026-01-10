@@ -21,9 +21,9 @@ export default async function SettingsPage() {
                 <p className="text-muted-foreground">Manage your account and brand preferences.</p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
-                {/* User Profile Section - Spans 2 columns */}
-                <div className="bg-card border border-border p-6 lg:p-8 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 md:col-span-2 space-y-6">
+            <div className="flex flex-col gap-6 md:gap-8 max-w-2xl mx-auto w-full">
+                {/* User Profile Section */}
+                <div className="bg-card border border-border p-6 lg:p-8 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 space-y-6">
                     <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
                         <User className="w-5 h-5 text-primary" />
                         Account Details
@@ -50,8 +50,8 @@ export default async function SettingsPage() {
                     </div>
                 </div>
 
-                {/* Appearance Section - Spans 1 column */}
-                <div className="bg-card border border-border p-6 lg:p-8 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 md:col-span-1 space-y-6 h-fit">
+                {/* Appearance Section */}
+                <div className="bg-card border border-border p-6 lg:p-8 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 space-y-6">
                     <h3 className="text-xl font-bold text-foreground flex items-center gap-2">
                         <Palette className="w-5 h-5 text-primary" />
                         Appearance
@@ -64,37 +64,6 @@ export default async function SettingsPage() {
                         <div className="flex items-center justify-between mt-2">
                             <span className="text-xs font-medium text-muted-foreground">Mode</span>
                             <ThemeToggle />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Brand Profile Section - Full Width */}
-                <div className="bg-card border border-border p-6 lg:p-8 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 md:col-span-3 space-y-6">
-                    <h3 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                        <span className="w-5 h-5 bg-primary rounded-md flex items-center justify-center text-primary-foreground text-[10px]">B</span>
-                        Brand Profile
-                    </h3>
-                    <div className="space-y-6 max-w-3xl">
-                        <div className="flex flex-col gap-2 group">
-                            <label className="text-sm font-medium text-muted-foreground group-focus-within:text-primary transition-colors">Brand Name</label>
-                            <input
-                                type="text"
-                                defaultValue="Content Beta"
-                                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all placeholder:text-muted-foreground/50"
-                            />
-                        </div>
-                        <div className="flex flex-col gap-2 group">
-                            <label className="text-sm font-medium text-muted-foreground group-focus-within:text-primary transition-colors">Brand Voice</label>
-                            <textarea
-                                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground min-h-[120px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all resize-y placeholder:text-muted-foreground/50"
-                                defaultValue="Professional, Authoritative, yet approachable."
-                            />
-                            <p className="text-xs text-muted-foreground text-right">0/500 characters</p>
-                        </div>
-                        <div className="pt-2">
-                            <button className="bg-primary text-primary-foreground font-bold px-8 py-3 rounded-xl hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-primary/20 flex items-center gap-2">
-                                Save Changes
-                            </button>
                         </div>
                     </div>
                 </div>
