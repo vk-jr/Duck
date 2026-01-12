@@ -70,10 +70,11 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         layers: ImageLayer[]
     } | null>(null)
     const [activeLayerId, setActiveLayerId] = useState<string | null>(null)
+    const [isSuccess, setIsSuccess] = useState(false) // Success state for animations
 
 
     // Rectangle State
-    const [activeRectangle, setActiveRectangle] = useState<{ x: number, y: number, width: number, height: number } | null>(null)
+    const [activeRectangle, setActiveRectangle] = useState<number[] | null>(null)
 
     // Canvas Container Ref for Fullscreen
     const canvasContainerRef = useRef<HTMLDivElement>(null)
@@ -370,6 +371,10 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
             setNodes((nds) => nds.filter(n => n.id !== tempNodeId))
             setEdges((eds) => eds.filter(e => e.id !== newEdge.id))
         } else {
+            // Success Animation Trigger
+            setIsSuccess(true)
+            setTimeout(() => setIsSuccess(false), 2000)
+
             const layerId = result.layerId
             // alert(`Sent to processing engine! Layer ID: ${layerId}`) // Removed alert for smoother flow
 
@@ -500,6 +505,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                         activeRectangle={activeRectangle}
                         onRectangleChange={setActiveRectangle}
                         isProcessing={isProcessing}
+                        isSuccess={isSuccess}
                         onExit={() => {
                             setEditModeData(null)
                             setActiveLayerId(null)

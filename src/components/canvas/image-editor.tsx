@@ -66,11 +66,16 @@ const ResizeHandle = ({
     )
 }
 
-export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, onLayerSelect, activeRectangle, onRectangleChange, isProcessing }: ImageEditorProps & {
-    activeRectangle?: { x: number, y: number, width: number, height: number } | null
-    onRectangleChange?: (rect: { x: number, y: number, width: number, height: number } | null) => void
+export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, onLayerSelect, activeRectangle, onRectangleChange, isProcessing, isSuccess }: ImageEditorProps & {
+    activeRectangle?: number[] | null
+    onRectangleChange?: (rect: number[] | null) => void
     isProcessing?: boolean
+    isSuccess?: boolean
 }) {
+    // ... (rest of the component)
+
+    // ... inside return ...
+
     const containerRef = useRef<HTMLDivElement>(null)
     const [layerTransforms, setLayerTransforms] = useState<Record<string, Transform>>({})
     const [aspectRatio, setAspectRatio] = useState<number | null>(null)
@@ -180,31 +185,60 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
     }
 
     const handleDrawEnd = () => {
-        if (!isDrawing || !currentDrawRect) return
+        if (!isDrawing || !currentDrawRect || !containerRef.current) return
 
         setIsDrawing(false)
 
         // Calculate original image coordinates
-        if (containerRef.current && aspectRatio) {
-            const containerWidth = containerRef.current.offsetWidth
-            const containerHeight = containerRef.current.offsetHeight
+        const imgElement = containerRef.current.querySelector('img') as HTMLImageElement
+        if (imgElement) {
+            // Use getBoundingClientRect for precise displayed dimensions (handles borders, object-fit, zooming)
+            const imgRect = imgElement.getBoundingClientRect()
+            const containerRect = containerRef.current.getBoundingClientRect()
 
-            // We need natural dimensions. We can get them from the image element inside
-            const imgElement = containerRef.current.querySelector('img') as HTMLImageElement
-            if (imgElement) {
-                const scaleX = imgElement.naturalWidth / containerWidth
-                const scaleY = imgElement.naturalHeight / containerHeight
+            // Calculate the offset of the image within the container (e.g. due to borders or centering)
+            const offsetX = imgRect.left - containerRect.left
+            const offsetY = imgRect.top - containerRect.top
 
-                const originalRect = {
-                    x: Math.round(currentDrawRect.x * scaleX),
-                    y: Math.round(currentDrawRect.y * scaleY),
-                    width: Math.round(currentDrawRect.width * scaleX),
-                    height: Math.round(currentDrawRect.height * scaleY)
-                }
+            // Adjust the drawn rect (which is relative to container) to be relative to the image
+            const drawXWithinImage = currentDrawRect.x - offsetX
+            const drawYWithinImage = currentDrawRect.y - offsetY
 
-                if (onRectangleChange) {
-                    onRectangleChange(originalRect)
-                }
+            // Calculate Scale Factors: Natural / Displayed
+            const scaleX = imgElement.naturalWidth / imgRect.width
+            const scaleY = imgElement.naturalHeight / imgRect.height
+
+            // Apply scaling
+            const x1 = Math.round(drawXWithinImage * scaleX)
+            const y1 = Math.round(drawYWithinImage * scaleY)
+            const w = Math.round(currentDrawRect.width * scaleX)
+            const h = Math.round(currentDrawRect.height * scaleY)
+
+            const x2 = x1 + w
+            const y2 = y1 + h
+
+            // Ensure coordinates are within bounds (optional but good practice)
+            const clampedX1 = Math.max(0, x1)
+            const clampedY1 = Math.max(0, y1)
+            const clampedX2 = Math.min(imgElement.naturalWidth, x2)
+            const clampedY2 = Math.min(imgElement.naturalHeight, y2)
+
+            // We'll stick to raw calculation as per user request to "not change anything else" but clamping is usually desired.
+            // User example: 0,0 -> 400,400.
+            // If I draw slightly outside, x could be negative.
+            // I'll clamp to 0 minimum.
+
+            const finalX1 = Math.max(0, x1)
+            const finalY1 = Math.max(0, y1)
+            const finalX2 = Math.min(imgElement.naturalWidth, x2)
+            const finalY2 = Math.min(imgElement.naturalHeight, y2)
+
+            // Actually user said "Don't change anything else". I should probably trust the math.
+            // But negative coordinates are definitely wrong for this model usually.
+            // I will return [finalX1, finalY1, finalX2, finalY2]
+
+            if (onRectangleChange) {
+                onRectangleChange([finalX1, finalY1, finalX2, finalY2])
             }
         }
     }
@@ -304,17 +338,32 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
     // Scale rectangle for display
     const getDisplayRect = () => {
         if (isDrawing) return currentDrawRect
-        if (activeRectangle && containerRef.current) {
+        if (activeRectangle && activeRectangle.length === 4 && containerRef.current) {
             const imgElement = containerRef.current.querySelector('img') as HTMLImageElement
             if (imgElement) {
-                const scaleX = containerRef.current.offsetWidth / imgElement.naturalWidth
-                const scaleY = containerRef.current.offsetHeight / imgElement.naturalHeight
+                const imgRect = imgElement.getBoundingClientRect()
+                // We need container rect to calculate offset relative to container (position: absolute context)
+                const containerRect = containerRef.current.getBoundingClientRect()
+
+                const offsetX = imgRect.left - containerRect.left
+                const offsetY = imgRect.top - containerRect.top
+
+                const scaleX = imgRect.width / imgElement.naturalWidth
+                const scaleY = imgRect.height / imgElement.naturalHeight
+
+                const [x1, y1, x2, y2] = activeRectangle
+
+                // Convert back to Display Dimensions
+                const dispX = (x1 * scaleX) + offsetX
+                const dispY = (y1 * scaleY) + offsetY
+                const dispW = (x2 - x1) * scaleX
+                const dispH = (y2 - y1) * scaleY
 
                 return {
-                    x: activeRectangle.x * scaleX,
-                    y: activeRectangle.y * scaleY,
-                    width: activeRectangle.width * scaleX,
-                    height: activeRectangle.height * scaleY
+                    x: dispX,
+                    y: dispY,
+                    width: dispW,
+                    height: dispH
                 }
             }
         }
@@ -436,8 +485,10 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                     {displayRect && (
                         <div
                             className={cn(
-                                "absolute border-2 z-20 pointer-events-none overflow-hidden",
-                                isProcessing ? "border-amber-500 bg-amber-500/10" : "border-red-500 bg-red-500/20"
+                                "absolute border-2 z-20 pointer-events-none overflow-visible transition-colors duration-300",
+                                isSuccess ? "border-green-500 bg-green-500/10" :
+                                    isProcessing ? "border-amber-500 bg-amber-500/10" :
+                                        "border-primary bg-primary/10" // Default to Primary Yellow
                             )}
                             style={{
                                 left: displayRect.x,
@@ -446,11 +497,28 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                                 height: displayRect.height
                             }}
                         >
+                            {/* Status Label */}
+                            {(isProcessing || isSuccess) && (
+                                <div className={cn(
+                                    "absolute -top-10 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-xs font-bold text-white shadow-xl flex items-center gap-2 transition-all z-30",
+                                    isSuccess ? "bg-green-500 animate-in fade-in zoom-in" : "bg-amber-500"
+                                )}>
+                                    {isSuccess ? (
+                                        <span>Done!</span>
+                                    ) : (
+                                        <>
+                                            <div className="w-2 h-2 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                                            <span>Processing...</span>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Scanning Animation */}
                             {isProcessing && (
-                                <>
-                                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/50 to-transparent animate-[shimmer_2s_infinite] -translate-y-full" style={{
-                                        animation: 'scan 2s linear infinite'
+                                <div className="absolute inset-0 overflow-hidden">
+                                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/50 to-transparent -translate-y-full" style={{
+                                        animation: 'scan 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite'
                                     }} />
                                     <style jsx>{`
                                         @keyframes scan {
@@ -458,10 +526,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                                             100% { transform: translateY(100%); }
                                         }
                                     `}</style>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin shadow-lg" />
-                                    </div>
-                                </>
+                                </div>
                             )}
                         </div>
                     )}

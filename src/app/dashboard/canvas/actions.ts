@@ -8,7 +8,7 @@ interface ProcessCanvasParams {
     brandId?: string
     text: string
     type: string
-    rectangle?: { x: number, y: number, width: number, height: number }
+    rectangle?: number[]
 }
 
 export async function processCanvasImage({ imageId, imageUrl, brandId, text, type, rectangle }: ProcessCanvasParams) {

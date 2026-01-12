@@ -25,7 +25,7 @@ interface CanvasSidebarProps {
     editModeLayers?: ImageLayer[] // New Prop
     activeLayerId?: string | null // New Prop
     onLayerSelect?: (id: string | null) => void // New Prop
-    activeRectangle?: { x: number, y: number, width: number, height: number } | null // New Prop
+    activeRectangle?: number[] | null // New Prop
     onDraw?: () => void // New Prop
 }
 
@@ -120,10 +120,10 @@ export default function CanvasSidebar({
                                             <span className="text-xs font-bold text-primary">Region Selected</span>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground font-mono">
-                                            <div>X: {activeRectangle.x}</div>
-                                            <div>Y: {activeRectangle.y}</div>
-                                            <div>W: {activeRectangle.width}</div>
-                                            <div>H: {activeRectangle.height}</div>
+                                            <div>X1: {activeRectangle[0]}</div>
+                                            <div>Y1: {activeRectangle[1]}</div>
+                                            <div>X2: {activeRectangle[2]}</div>
+                                            <div>Y2: {activeRectangle[3]}</div>
                                         </div>
                                     </div>
                                 ) : (
