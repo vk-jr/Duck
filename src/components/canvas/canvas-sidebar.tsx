@@ -1,6 +1,6 @@
 import { GripVertical, Layers, Wand2 } from 'lucide-react'
 import { Node } from 'reactflow'
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 interface GeneratedImage {
@@ -25,9 +25,11 @@ interface CanvasSidebarProps {
     editModeLayers?: ImageLayer[] // New Prop
     activeLayerId?: string | null // New Prop
     onLayerSelect?: (id: string | null) => void // New Prop
+    activeRectangle?: { x: number, y: number, width: number, height: number } | null // New Prop
+    onDraw?: () => void // New Prop
 }
 
-function CanvasSidebar({
+export default function CanvasSidebar({
     images,
     layers = [],
     selectedNode,
@@ -35,7 +37,9 @@ function CanvasSidebar({
     isProcessing,
     editModeLayers,
     activeLayerId,
-    onLayerSelect
+    onLayerSelect,
+    activeRectangle,
+    onDraw
 }: CanvasSidebarProps) {
     const [layerText, setLayerText] = useState('')
     const [layerType, setLayerType] = useState('segmentation')
@@ -62,55 +66,123 @@ function CanvasSidebar({
         event.dataTransfer.effectAllowed = 'move'
     }
 
+    // Region vs Text Mode State
+    const [segmentationMode, setSegmentationMode] = useState<'region' | 'text'>('region')
+
     if (selectedNode && selectedNode.type === 'imageNode') {
-        // ... (Keep existing selected node UI)
         return (
             <aside className="w-full h-full border-r border-border bg-card flex flex-col font-sans">
                 <div className="p-4 border-b border-border">
                     <h2 className="font-semibold text-foreground flex items-center gap-2">
-                        <Layers className="w-4 h-4" /> Layer Properties
+                        <Layers className="w-4 h-4" /> Segmentation
                     </h2>
                     <p className="text-xs text-muted-foreground mt-1 truncate" title={selectedNode.data.label}>
                         {selectedNode.data.label || 'Untitled Layer'}
                     </p>
                 </div>
 
-                <div className="p-4 space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Instruction / Text</label>
-                        <textarea
-                            value={layerText}
-                            onChange={(e) => setLayerText(e.target.value)}
-                            placeholder="e.g. Remove background, Add shadow..."
-                            className="w-full bg-secondary border border-border rounded-lg p-3 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-none resize-none h-32 placeholder:text-muted-foreground/50"
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <label className="text-xs font-medium text-muted-foreground">Action Type</label>
-                        <select
-                            value={layerType}
-                            onChange={(e) => setLayerType(e.target.value)}
-                            className="w-full bg-secondary border border-border rounded-lg p-2 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
-                        >
-                            <option value="segmentation">Segmentation</option>
-                            <option value="generation">Generation</option>
-                            <option value="layout">Layout</option>
-                        </select>
-                    </div>
-
+                {/* Segmentation Mode Tabs */}
+                <div className="flex p-2 gap-2 border-b border-border bg-secondary/20">
                     <button
-                        onClick={() => onProcess(layerText, layerType)}
-                        disabled={isProcessing || !layerText}
-                        className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                    >
-                        {isProcessing ? (
-                            <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                        ) : (
-                            <Wand2 className="w-4 h-4" />
+                        onClick={() => setSegmentationMode('region')}
+                        className={cn(
+                            "flex-1 py-2 text-xs font-medium rounded-lg transition-all",
+                            segmentationMode === 'region' ? "bg-background text-primary shadow-sm ring-1 ring-primary/20" : "text-muted-foreground hover:bg-secondary/50"
                         )}
-                        {isProcessing ? 'Processing...' : 'Process Segment'}
+                    >
+                        Region (Coordinates)
                     </button>
+                    <button
+                        onClick={() => setSegmentationMode('text')}
+                        className={cn(
+                            "flex-1 py-2 text-xs font-medium rounded-lg transition-all",
+                            segmentationMode === 'text' ? "bg-background text-primary shadow-sm ring-1 ring-primary/20" : "text-muted-foreground hover:bg-secondary/50"
+                        )}
+                    >
+                        Text (Words)
+                    </button>
+                </div>
+
+                <div className="p-4 space-y-6">
+
+                    {/* REGION MODE UI */}
+                    {segmentationMode === 'region' && (
+                        <div className="space-y-4">
+                            <div className="bg-secondary/50 rounded-lg p-4 border border-border text-center space-y-3">
+                                <p className="text-xs text-muted-foreground">
+                                    Draw a rectangle on the image to select the object.
+                                </p>
+
+                                {activeRectangle ? (
+                                    <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-left">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="w-2 h-2 rounded-full bg-primary" />
+                                            <span className="text-xs font-bold text-primary">Region Selected</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground font-mono">
+                                            <div>X: {activeRectangle.x}</div>
+                                            <div>Y: {activeRectangle.y}</div>
+                                            <div>W: {activeRectangle.width}</div>
+                                            <div>H: {activeRectangle.height}</div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-amber-500 font-medium flex items-center justify-center gap-2 bg-amber-500/10 p-2 rounded">
+                                        <Wand2 className="w-3 h-3" /> No Region Selected
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={() => onDraw?.()}
+                                    className="w-full bg-secondary hover:bg-secondary/80 text-foreground border border-primary/20 text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <GripVertical className="w-3 h-3" />
+                                    {activeRectangle ? 'Redraw Region' : 'Draw Region'}
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={() => onProcess('', 'rectangle')} // Sending 'rectangle' as requested
+                                disabled={isProcessing || !activeRectangle}
+                                className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                            >
+                                {isProcessing ? (
+                                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                                ) : (
+                                    <Wand2 className="w-4 h-4" />
+                                )}
+                                Segment Region
+                            </button>
+                        </div>
+                    )}
+
+                    {/* TEXT MODE UI */}
+                    {segmentationMode === 'text' && (
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-muted-foreground">What object to segment?</label>
+                                <textarea
+                                    value={layerText}
+                                    onChange={(e) => setLayerText(e.target.value)}
+                                    placeholder="e.g. Cat, Red Car, Person..."
+                                    className="w-full bg-secondary border border-border rounded-lg p-3 text-sm text-foreground focus:ring-1 focus:ring-primary focus:outline-none resize-none h-32 placeholder:text-muted-foreground/50"
+                                />
+                            </div>
+
+                            <button
+                                onClick={() => onProcess(layerText, 'segment')} // Sending 'segment' as requested
+                                disabled={isProcessing || !layerText}
+                                className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                            >
+                                {isProcessing ? (
+                                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                                ) : (
+                                    <Wand2 className="w-4 h-4" />
+                                )}
+                                Segment Text
+                            </button>
+                        </div>
+                    )}
                 </div>
             </aside>
         )
@@ -220,5 +292,3 @@ function CanvasSidebar({
         </aside>
     )
 }
-
-export default memo(CanvasSidebar)

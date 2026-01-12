@@ -66,7 +66,11 @@ const ResizeHandle = ({
     )
 }
 
-export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, onLayerSelect }: ImageEditorProps) {
+export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, onLayerSelect, activeRectangle, onRectangleChange, isProcessing }: ImageEditorProps & {
+    activeRectangle?: { x: number, y: number, width: number, height: number } | null
+    onRectangleChange?: (rect: { x: number, y: number, width: number, height: number } | null) => void
+    isProcessing?: boolean
+}) {
     const containerRef = useRef<HTMLDivElement>(null)
     const [layerTransforms, setLayerTransforms] = useState<Record<string, Transform>>({})
     const [aspectRatio, setAspectRatio] = useState<number | null>(null)
@@ -75,6 +79,12 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
     const [isDragging, setIsDragging] = useState(false)
     const [isResizing, setIsResizing] = useState(false)
     const [resizeHandle, setResizeHandle] = useState<string | null>(null)
+
+    // Drawing State
+    const [isDrawingMode, setIsDrawingMode] = useState(false)
+    const [isDrawing, setIsDrawing] = useState(false)
+    const [drawStart, setDrawStart] = useState({ x: 0, y: 0 })
+    const [currentDrawRect, setCurrentDrawRect] = useState<{ x: number, y: number, width: number, height: number } | null>(null)
 
     // Initial Capture for delta calculation
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -107,6 +117,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
 
 
     const handleMouseDown = (e: React.MouseEvent, layerId: string) => {
+        if (isDrawingMode || isProcessing) return // Don't select layers when drawing or processing
         e.stopPropagation()
         onLayerSelect(layerId)
 
@@ -136,11 +147,79 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
         }
     }
 
-    // Global listeners for robust drag/resize
+    // Drawing Handlers
+    const handleDrawStart = (e: React.MouseEvent) => {
+        if (!isDrawingMode || !containerRef.current || isProcessing) return
+        e.stopPropagation()
+
+        const rect = containerRef.current.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const y = e.clientY - rect.top
+
+        setIsDrawing(true)
+        setDrawStart({ x, y })
+        setCurrentDrawRect({ x, y, width: 0, height: 0 })
+    }
+
+    const handleDrawMove = (e: MouseEvent) => {
+        if (!isDrawing || !containerRef.current) return
+
+        const rect = containerRef.current.getBoundingClientRect()
+        const currentX = e.clientX - rect.left
+        const currentY = e.clientY - rect.top
+
+        const width = currentX - drawStart.x
+        const height = currentY - drawStart.y
+
+        setCurrentDrawRect({
+            x: width > 0 ? drawStart.x : currentX,
+            y: height > 0 ? drawStart.y : currentY,
+            width: Math.abs(width),
+            height: Math.abs(height)
+        })
+    }
+
+    const handleDrawEnd = () => {
+        if (!isDrawing || !currentDrawRect) return
+
+        setIsDrawing(false)
+
+        // Calculate original image coordinates
+        if (containerRef.current && aspectRatio) {
+            const containerWidth = containerRef.current.offsetWidth
+            const containerHeight = containerRef.current.offsetHeight
+
+            // We need natural dimensions. We can get them from the image element inside
+            const imgElement = containerRef.current.querySelector('img') as HTMLImageElement
+            if (imgElement) {
+                const scaleX = imgElement.naturalWidth / containerWidth
+                const scaleY = imgElement.naturalHeight / containerHeight
+
+                const originalRect = {
+                    x: Math.round(currentDrawRect.x * scaleX),
+                    y: Math.round(currentDrawRect.y * scaleY),
+                    width: Math.round(currentDrawRect.width * scaleX),
+                    height: Math.round(currentDrawRect.height * scaleY)
+                }
+
+                if (onRectangleChange) {
+                    onRectangleChange(originalRect)
+                }
+            }
+        }
+    }
+
+    // Global listeners for robust drag/resize/draw
     useEffect(() => {
-        if (isDragging || isResizing) {
-            const onWindowMove = (e: MouseEvent) => handleMouseMove(e)
-            const onWindowUp = () => handleMouseUp()
+        if (isDragging || isResizing || isDrawing) {
+            const onWindowMove = (e: MouseEvent) => {
+                if (isDrawing) handleDrawMove(e)
+                else handleMouseMove(e)
+            }
+            const onWindowUp = () => {
+                if (isDrawing) handleDrawEnd()
+                else handleMouseUp()
+            }
 
             window.addEventListener('mousemove', onWindowMove)
             window.addEventListener('mouseup', onWindowUp)
@@ -150,7 +229,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                 window.removeEventListener('mouseup', onWindowUp)
             }
         }
-    }, [isDragging, isResizing, dragStart, activeLayerId, initialTransform, resizeHandle])
+    }, [isDragging, isResizing, isDrawing, dragStart, activeLayerId, initialTransform, resizeHandle, drawStart, currentDrawRect])
     // Added dependencies to ensure closure has latest state
 
     const handleMouseMove = (e: React.MouseEvent | MouseEvent) => {
@@ -222,25 +301,62 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
         setResizeHandle(null)
     }
 
+    // Scale rectangle for display
+    const getDisplayRect = () => {
+        if (isDrawing) return currentDrawRect
+        if (activeRectangle && containerRef.current) {
+            const imgElement = containerRef.current.querySelector('img') as HTMLImageElement
+            if (imgElement) {
+                const scaleX = containerRef.current.offsetWidth / imgElement.naturalWidth
+                const scaleY = containerRef.current.offsetHeight / imgElement.naturalHeight
+
+                return {
+                    x: activeRectangle.x * scaleX,
+                    y: activeRectangle.y * scaleY,
+                    width: activeRectangle.width * scaleX,
+                    height: activeRectangle.height * scaleY
+                }
+            }
+        }
+        return null
+    }
+
+    const displayRect = getDisplayRect()
+
     return (
         <div
             className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col pt-16 md:pt-0 transition-all"
         // Removed onMouseMove, onMouseUp, onMouseLeave from here
         >
             {/* Toolbar */}
-            <div className="absolute top-4 left-4 z-50">
+            <div className="absolute top-4 left-4 z-50 flex gap-2">
                 <button
                     onClick={onExit}
                     className="flex items-center gap-2 px-4 py-2 bg-secondary hover:bg-secondary/80 rounded-lg text-sm font-medium transition-colors border border-border"
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    Back to Canvas
+                    Back
+                </button>
+
+                <button
+                    onClick={() => {
+                        setIsDrawingMode(!isDrawingMode)
+                        // Clear active layer when entering draw mode
+                        if (!isDrawingMode) onLayerSelect(null)
+                    }}
+                    className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-border",
+                        isDrawingMode ? "bg-primary text-primary-foreground" : "bg-secondary hover:bg-secondary/80"
+                    )}
+                >
+                    <Move className="w-4 h-4" />
+                    Draw Rectangle
                 </button>
             </div>
 
             <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
                 <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider bg-background/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/5">
-                    Editing Mode
+                    {isDrawingMode ? 'Drawing Mode' : 'Editing Mode'}
                 </div>
             </div>
 
@@ -250,7 +366,11 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                 {/* Responsive Container locked to aspect ratio */}
                 <div
                     ref={containerRef}
-                    className="relative shadow-2xl rounded-lg overflow-hidden border border-border bg-black/5"
+                    onMouseDown={isDrawingMode ? handleDrawStart : undefined}
+                    className={cn(
+                        "relative shadow-2xl rounded-lg overflow-hidden border border-border bg-black/5",
+                        isDrawingMode && "cursor-crosshair"
+                    )}
                     style={{
                         width: '100%',
                         height: '100%',
@@ -311,6 +431,40 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                             </div>
                         )
                     })}
+
+                    {/* Drawn Rectangle Overlay */}
+                    {displayRect && (
+                        <div
+                            className={cn(
+                                "absolute border-2 z-20 pointer-events-none overflow-hidden",
+                                isProcessing ? "border-amber-500 bg-amber-500/10" : "border-red-500 bg-red-500/20"
+                            )}
+                            style={{
+                                left: displayRect.x,
+                                top: displayRect.y,
+                                width: displayRect.width,
+                                height: displayRect.height
+                            }}
+                        >
+                            {/* Scanning Animation */}
+                            {isProcessing && (
+                                <>
+                                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/50 to-transparent animate-[shimmer_2s_infinite] -translate-y-full" style={{
+                                        animation: 'scan 2s linear infinite'
+                                    }} />
+                                    <style jsx>{`
+                                        @keyframes scan {
+                                            0% { transform: translateY(-100%); }
+                                            100% { transform: translateY(100%); }
+                                        }
+                                    `}</style>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin shadow-lg" />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

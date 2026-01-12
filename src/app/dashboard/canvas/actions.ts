@@ -8,9 +8,10 @@ interface ProcessCanvasParams {
     brandId?: string
     text: string
     type: string
+    rectangle?: { x: number, y: number, width: number, height: number }
 }
 
-export async function processCanvasImage({ imageId, imageUrl, brandId, text, type }: ProcessCanvasParams) {
+export async function processCanvasImage({ imageId, imageUrl, brandId, text, type, rectangle }: ProcessCanvasParams) {
     // Use service role client to bypass RLS policies for insertion
     const supabase = await createServiceRoleClient()
     // const { data: { user } } = await supabase.auth.getUser() // Removed to avoid collision
@@ -78,7 +79,8 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
                 original_image_url: imageUrl,
                 source: 'canvas_segmentation',
                 prompt: text,
-                // status: 'generating' // (Redundant if we have a column, but safe to keep or remove. Removing to avoid confusion)
+                rectangle: rectangle, // Store rectangle in metadata
+                type: type, // Store type in metadata
             }
         })
         .select()
@@ -108,7 +110,8 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
                 image_url: imageUrl, // Send original URL as requested
                 metadata: {
                     type: type,
-                    original_url: imageUrl
+                    original_url: imageUrl,
+                    rectangle: rectangle // Send rectangle to webhook
                 }
             })
         })
@@ -143,7 +146,6 @@ export async function saveCanvasState(state: any) {
     const { data, error } = await supabase
         .from('canvas_states')
         .insert({
-            user_id: user.id, // Add user_id so RLS allows reading it back
             brand_id: brandId,
             nodes: state.nodes,
             edges: state.edges,

@@ -89,18 +89,9 @@ export default async function DashboardPage() {
                                 />
                             )}
                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
-                                <div className="flex gap-2">
-                                    <Link href={image.image_url} target="_blank" className="flex-1">
-                                        <button className="w-full bg-secondary/80 backdrop-blur text-white py-2 rounded-lg font-medium text-xs hover:bg-secondary border border-white/10 transition-colors">
-                                            Open
-                                        </button>
-                                    </Link>
-                                    <Link href="/dashboard/canvas" className="flex-1">
-                                        <button className="w-full bg-primary text-primary-foreground py-2 rounded-lg font-bold text-xs hover:bg-primary/90 transition-colors">
-                                            Canvas
-                                        </button>
-                                    </Link>
-                                </div>
+                                <button className="w-full bg-white text-black py-2 rounded-lg font-medium text-sm hover:bg-gray-100">
+                                    Deconstruct
+                                </button>
                             </div>
                         </div>
                     ))}
