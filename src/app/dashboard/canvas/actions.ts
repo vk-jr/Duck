@@ -11,6 +11,8 @@ interface ProcessCanvasParams {
     rectangle?: number[]
 }
 
+import { logWorkflow } from '@/lib/workflow-logger'
+
 export async function processCanvasImage({ imageId, imageUrl, brandId, text, type, rectangle }: ProcessCanvasParams) {
     // Use service role client to bypass RLS policies for insertion
     const supabase = await createServiceRoleClient()
@@ -38,6 +40,9 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
 
     const user = standardUser // Alias it back
 
+    // Service role for logging
+    const adminSupabase = await createServiceRoleClient()
+
     // 1. Resolve Brand ID
     let activeBrandId = brandId
     if (!activeBrandId) {
@@ -60,6 +65,13 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
     }
 
     if (!activeBrandId) {
+        await logWorkflow(adminSupabase, {
+            workflowName: 'canvas_processing',
+            statusCode: 404,
+            category: 'CLIENT_ERROR',
+            message: 'Could not resolve Brand ID',
+            userId: user.id
+        })
         return { error: 'Could not resolve Brand ID. Please Create a Brand first.' }
     }
 
@@ -88,12 +100,31 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
 
     if (dbError) {
         console.error('Layer Creation Error:', dbError)
+        await logWorkflow(adminSupabase, {
+            workflowName: 'canvas_processing',
+            statusCode: 500,
+            category: 'DB_ERROR',
+            message: 'Layer Creation Error',
+            details: dbError,
+            userId: user.id,
+            brandId: activeBrandId
+        })
         return { error: `DB Error: ${dbError.message}. Details: ${dbError.details || ''}` }
     }
 
     // 3. Call N8N Webhook
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_GENERATION
-    if (!webhookUrl) return { error: 'Webhook URL not configured' }
+    if (!webhookUrl) {
+        await logWorkflow(adminSupabase, {
+            workflowName: 'canvas_processing',
+            statusCode: 500,
+            category: 'CONFIG_ERROR',
+            message: 'Webhook URL not configured',
+            userId: user.id,
+            brandId: activeBrandId
+        })
+        return { error: 'Webhook URL not configured' }
+    }
 
     try {
         const response = await fetch(webhookUrl, {
@@ -123,8 +154,29 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
         return { success: true, layerId: layer.id }
     } catch (err) {
         console.error('Canvas Webhook Error:', err)
+        await logWorkflow(adminSupabase, {
+            workflowName: 'canvas_processing',
+            statusCode: 502,
+            category: 'API_ERROR',
+            message: 'Failed to trigger processing engine',
+            details: err,
+            userId: user.id,
+            brandId: activeBrandId,
+            metadata: { image_id: imageId, layer_id: layer.id }
+        })
         return { error: 'Failed to trigger processing engine.' }
     }
+
+    // Success Log
+    await logWorkflow(adminSupabase, {
+        workflowName: 'canvas_processing',
+        statusCode: 200,
+        category: 'SUCCESS',
+        message: 'Canvas workflow triggered successfully',
+        userId: user.id,
+        brandId: activeBrandId,
+        metadata: { image_id: imageId, layer_id: layer.id }
+    })
 }
 
 export async function saveCanvasState(state: any) {

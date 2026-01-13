@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logWorkflow } from '@/lib/workflow-logger'
 
 export async function generateImage(formData: FormData) {
     const supabase = await createClient()
@@ -9,8 +10,14 @@ export async function generateImage(formData: FormData) {
     // 1. Get User
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
+        // Log unauthorized attempt if possible, though we might not have a client to log with if we want to be strict, 
+        // but here we can try logging with service role if we really wanted. 
+        // For now, just return error as before, or log it.
         return { error: 'Unauthorized' }
     }
+
+    // Initialize Admin Client for Logging
+    const adminSupabase = await createServiceRoleClient()
 
     // 2. Get Form Data
     const prompt = formData.get('prompt') as string
@@ -37,6 +44,13 @@ export async function generateImage(formData: FormData) {
     }
 
     if (!activeBrandId) {
+        await logWorkflow(adminSupabase, {
+            workflowName: 'image_generation',
+            statusCode: 404,
+            category: 'CLIENT_ERROR',
+            message: 'No brand found',
+            userId: user.id
+        })
         return { error: 'No brand found. Please create a brand first.' }
     }
 
@@ -53,13 +67,32 @@ export async function generateImage(formData: FormData) {
 
     if (dbError) {
         console.error('DB Insert Error:', dbError)
+        await logWorkflow(adminSupabase, {
+            workflowName: 'image_generation',
+            statusCode: 500,
+            category: 'DB_ERROR',
+            message: 'Failed to start generation record',
+            details: dbError,
+            userId: user.id,
+            brandId: activeBrandId
+        })
         return { error: 'Failed to start generation record.' }
     }
 
     // 4. Call n8n Webhook
     // We pass the prompt AND the `generated_image_id` so n8n can update THIS specific row.
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_GENERATION
-    if (!webhookUrl) return { error: 'Webhook URL not configured' }
+    if (!webhookUrl) {
+        await logWorkflow(adminSupabase, {
+            workflowName: 'image_generation',
+            statusCode: 500,
+            category: 'CONFIG_ERROR',
+            message: 'Webhook URL not configured',
+            userId: user.id,
+            brandId: activeBrandId
+        })
+        return { error: 'Webhook URL not configured' }
+    }
 
     try {
         // Sending as POST body.
@@ -87,8 +120,30 @@ export async function generateImage(formData: FormData) {
         console.error('Webhook Error:', err)
         // Optional: Update status to failed
         await supabase.from('generated_images').update({ status: 'failed' }).eq('id', insertedImage.id)
+
+        await logWorkflow(adminSupabase, {
+            workflowName: 'image_generation',
+            statusCode: 502,
+            category: 'API_ERROR',
+            message: 'Failed to trigger AI agent',
+            details: err,
+            userId: user.id,
+            brandId: activeBrandId,
+            metadata: { image_id: insertedImage.id }
+        })
         return { error: 'Failed to trigger AI agent.' }
     }
+
+    // Success Log
+    await logWorkflow(adminSupabase, {
+        workflowName: 'image_generation',
+        statusCode: 200,
+        category: 'SUCCESS',
+        message: 'Workflow triggered successfully',
+        userId: user.id,
+        brandId: activeBrandId,
+        metadata: { image_id: insertedImage.id, prompt: prompt }
+    })
 
     revalidatePath('/dashboard/generator')
     return { success: true, imageId: insertedImage.id }

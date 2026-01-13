@@ -1,7 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { logWorkflow } from '@/lib/workflow-logger'
 
 export async function getBrands() {
     const supabase = await createClient()
@@ -47,14 +48,42 @@ export async function getQualityCheck(id: string) {
     }
 }
 
+export async function getUserAssets() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return { images: [], layers: [] }
+
+    // Fetch Generated Images
+    const { data: images } = await supabase
+        .from('generated_images')
+        .select('*')
+        .eq('created_by', user.id)
+        .eq('status', 'Generated') // Case sensitive? 'generated' or 'Generated'. Checks previous code used 'Generated' in Gallery page, but actions used 'generating'. Assuming 'generated' or 'Generated'.
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+    // Fetch Image Layers
+    const { data: layers } = await supabase
+        .from('image_layers')
+        .select('*')
+        .eq('user_id', user.id)
+        // .eq('status', 'generated') // Simplified check
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+    return { images: images || [], layers: layers || [] }
+}
+
 export async function createQualityCheck(formData: FormData) {
     const supabase = await createClient()
 
     const brandId = formData.get('brandId') as string
     const file = formData.get('image') as File
+    const existingImageUrl = formData.get('imageUrl') as string
 
-    if (!file) {
-        return { success: false, error: 'No file uploaded' }
+    if (!file && !existingImageUrl) {
+        return { success: false, error: 'No file uploaded or selected' }
     }
 
     try {
@@ -66,22 +95,32 @@ export async function createQualityCheck(formData: FormData) {
         }
 
         // 1. Upload Image to Storage
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${userId}/${Date.now()}.${fileExt}`
-        const { data: uploadData, error: uploadError } = await supabase
-            .storage
-            .from('images')
-            .upload(fileName, file)
+        let publicUrl = existingImageUrl
 
-        if (uploadError) {
-            console.error('Upload error:', uploadError)
-            return { success: false, error: 'Failed to upload image' }
+        if (file) {
+            // 1. Upload Image to Storage (Only if file provided)
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${userId}/${Date.now()}.${fileExt}`
+            const { data: uploadData, error: uploadError } = await supabase
+                .storage
+                .from('images')
+                .upload(fileName, file)
+
+            if (uploadError) {
+                console.error('Upload error:', uploadError)
+                return { success: false, error: 'Failed to upload image' }
+            }
+
+            const { data } = supabase
+                .storage
+                .from('images')
+                .getPublicUrl(fileName)
+
+            publicUrl = data.publicUrl
         }
 
-        const { data: { publicUrl } } = supabase
-            .storage
-            .from('images')
-            .getPublicUrl(fileName)
+        // Use service role for logging
+        const adminSupabase = await createServiceRoleClient()
 
         // 2. Save to Database with status 'generating'
         const { data: insertData, error: insertError } = await supabase
@@ -98,6 +137,15 @@ export async function createQualityCheck(formData: FormData) {
 
         if (insertError) {
             console.error('Database insert error:', insertError)
+            await logWorkflow(adminSupabase, {
+                workflowName: 'quality_check_create',
+                statusCode: 500,
+                category: 'DB_ERROR',
+                message: 'Failed to save check result',
+                details: insertError,
+                userId: userId,
+                brandId: brandId
+            })
             return { success: false, error: 'Failed to save check result' }
         }
 
@@ -105,6 +153,14 @@ export async function createQualityCheck(formData: FormData) {
         const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_GENERATION
         if (!webhookUrl) {
             console.warn('Webhook URL not configured')
+            await logWorkflow(adminSupabase, {
+                workflowName: 'quality_check_create',
+                statusCode: 500,
+                category: 'CONFIG_ERROR',
+                message: 'Webhook URL not configured',
+                userId: userId,
+                brandId: brandId
+            })
             return { success: true, data: insertData }
         }
 
@@ -127,17 +183,41 @@ export async function createQualityCheck(formData: FormData) {
             body: JSON.stringify(webhookBody)
         })
 
+        // Success Log
+        await logWorkflow(adminSupabase, {
+            workflowName: 'quality_check_create',
+            statusCode: 200,
+            category: 'SUCCESS',
+            message: 'Quality Check Triggered',
+            userId: userId,
+            brandId: brandId,
+            metadata: { check_id: insertData.id }
+        })
+
         revalidatePath('/dashboard/quality-checker/check')
         return { success: true, data: insertData }
 
     } catch (e) {
         console.error('Unexpected error:', e)
+        // We might not have adminSupabase here if it failed early, so we try creating it if possible or skip logging
+        try {
+            const adminSupabase = await createServiceRoleClient()
+            await logWorkflow(adminSupabase, {
+                workflowName: 'quality_check_create',
+                statusCode: 500,
+                category: 'API_ERROR',
+                message: 'Unexpected error in quality check creation',
+                details: e,
+            })
+        } catch (_) { }
+
         return { success: false, error: 'An unexpected error occurred' }
     }
 }
 
 export async function generateBrandGuidelines(formData: FormData) {
     const supabase = await createClient()
+    const adminSupabase = await createServiceRoleClient()
 
     // 1. Auth & Validation
     const { data: { user } } = await supabase.auth.getUser()
@@ -184,7 +264,17 @@ export async function generateBrandGuidelines(formData: FormData) {
 
         // 4. Call Webhook
         const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_GENERATION
-        if (!webhookUrl) return { success: false, error: 'Webhook URL not configured' }
+        if (!webhookUrl) {
+            await logWorkflow(adminSupabase, {
+                workflowName: 'brand_guidelines',
+                statusCode: 500,
+                category: 'CONFIG_ERROR',
+                message: 'Webhook URL not configured',
+                userId: user.id,
+                brandId: brandId
+            })
+            return { success: false, error: 'Webhook URL not configured' }
+        }
 
         // Generate a temporary ID since we aren't saving to generated_images
         const tempId = crypto.randomUUID()
@@ -210,11 +300,31 @@ export async function generateBrandGuidelines(formData: FormData) {
             throw new Error(`Webhook failed: ${response.statusText}`)
         }
 
+        // Success
+        await logWorkflow(adminSupabase, {
+            workflowName: 'brand_guidelines',
+            statusCode: 200,
+            category: 'SUCCESS',
+            message: 'Brand Guidelines Generation Triggered',
+            userId: user.id,
+            brandId: brandId,
+            metadata: { temp_id: tempId }
+        })
+
         revalidatePath('/dashboard/quality-checker/create')
         return { success: true, data: { id: tempId, status: 'sent_to_webhook' } }
 
     } catch (e) {
         console.error('Action error:', e)
+        await logWorkflow(adminSupabase, {
+            workflowName: 'brand_guidelines',
+            statusCode: 502,
+            category: 'API_ERROR',
+            message: 'Failed to start generation',
+            details: e,
+            userId: user.id,
+            brandId: brandId
+        })
         return { success: false, error: 'Failed to start generation' }
     }
 }

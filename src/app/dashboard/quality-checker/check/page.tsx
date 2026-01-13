@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
-import { Upload, CheckCircle, AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
-import { getBrands, createQualityCheck, getQualityCheck } from '@/app/actions/quality-checker'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Upload, CheckCircle, AlertCircle, Loader2, ShieldCheck, Image as ImageIcon, GripVertical, Layers, Sparkles } from 'lucide-react'
+import { getBrands, createQualityCheck, getQualityCheck, getUserAssets } from '@/app/actions/quality-checker'
 import { cn } from '@/lib/utils'
 
 interface Brand {
@@ -11,22 +11,38 @@ interface Brand {
     name: string
 }
 
+interface Asset {
+    id: string
+    image_url?: string // Generated Images
+    layer_url?: string // Image Layers
+    user_prompt?: string
+    status: string
+}
+
 export default function CheckGuidelinesPage() {
     const [brands, setBrands] = useState<Brand[]>([])
+    const [assets, setAssets] = useState<{ images: Asset[], layers: Asset[] }>({ images: [], layers: [] })
     const [selectedBrand, setSelectedBrand] = useState<string>('')
     const [file, setFile] = useState<File | null>(null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+    const [droppedUrl, setDroppedUrl] = useState<string | null>(null)
+    const [isDragOver, setIsDragOver] = useState(false)
     const [isChecking, setIsChecking] = useState(false)
     const [result, setResult] = useState<any>(null)
     const [error, setError] = useState<string | null>(null)
+    const [activeTab, setActiveTab] = useState<'generated' | 'layers'>('generated')
     const pollInterval = useRef<NodeJS.Timeout | null>(null)
 
     useEffect(() => {
-        async function loadBrands() {
-            const data = await getBrands()
-            setBrands(data)
+        async function loadData() {
+            const [brandsData, assetsData] = await Promise.all([
+                getBrands(),
+                getUserAssets()
+            ])
+            setBrands(brandsData)
+            setAssets(assetsData)
         }
-        loadBrands()
+        loadData()
 
         return () => {
             if (pollInterval.current) clearInterval(pollInterval.current)
@@ -38,9 +54,49 @@ export default function CheckGuidelinesPage() {
             const selectedFile = e.target.files[0]
             setFile(selectedFile)
             setPreviewUrl(URL.createObjectURL(selectedFile))
+            setDroppedUrl(null)
             setResult(null)
             setError(null)
         }
+    }
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragOver(true)
+    }
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragOver(false)
+    }
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault()
+        setIsDragOver(false)
+
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const selectedFile = e.dataTransfer.files[0]
+            setFile(selectedFile)
+            setPreviewUrl(URL.createObjectURL(selectedFile))
+            setDroppedUrl(null)
+            setResult(null)
+            setError(null)
+            return
+        }
+
+        const imageUrl = e.dataTransfer.getData('text/plain')
+        if (imageUrl) {
+            setFile(null)
+            setPreviewUrl(imageUrl)
+            setDroppedUrl(imageUrl)
+            setResult(null)
+            setError(null)
+        }
+    }
+
+    const handleDragStart = (e: React.DragEvent, url: string) => {
+        e.dataTransfer.setData('text/plain', url)
+        e.dataTransfer.effectAllowed = 'copy'
     }
 
     const startPolling = (checkId: string) => {
@@ -58,26 +114,25 @@ export default function CheckGuidelinesPage() {
                 setIsChecking(false)
                 if (pollInterval.current) clearInterval(pollInterval.current)
             }
-            // Continuing polling if still 'generating' or 'pending'
-        }, 3000) // Poll every 3 seconds
+        }, 3000)
     }
 
     const handleCheck = async () => {
-        if (!file) return
+        if (!file && !droppedUrl) return
 
         setIsChecking(true)
         setResult(null)
         setError(null)
 
         const formData = new FormData()
-        formData.append('image', file)
+        if (file) formData.append('image', file)
+        if (droppedUrl) formData.append('imageUrl', droppedUrl)
         formData.append('brandId', selectedBrand)
 
         try {
             const response = await createQualityCheck(formData)
 
             if (response.success && response.data?.id) {
-                // Start polling
                 startPolling(response.data.id)
             } else {
                 setError(response.error || 'Something went wrong')
@@ -89,12 +144,10 @@ export default function CheckGuidelinesPage() {
         }
     }
 
-    // Helper to format JSON keys for display
     const formatKey = (key: string) => {
         return key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase()).replace(/_/g, ' ')
     }
 
-    // Recursive component to display JSON results
     const ResultDisplay = ({ data }: { data: any }) => {
         if (typeof data !== 'object' || data === null) {
             return <span className='font-medium text-foreground'>{String(data)}</span>
@@ -126,111 +179,257 @@ export default function CheckGuidelinesPage() {
     }
 
     return (
-        <div className="flex gap-8 h-[calc(100vh-8rem)]">
-            {/* Left Panel - Input */}
-            <div className="w-1/2 flex flex-col gap-6">
-                <div>
-                    <h1 className="text-3xl font-serif font-bold tracking-tight mb-2">Check Guidelines</h1>
-                    <p className="text-muted-foreground">Upload an asset to verify compliance.</p>
-                </div>
+        <div className="flex gap-6 h-[calc(100vh-8rem)]">
+            {/* Main Content Area */}
+            <div className="flex-1 flex gap-6 min-w-0">
+                {/* Left Panel - Input */}
+                <div className="w-1/2 flex flex-col gap-6">
+                    <div>
+                        <h1 className="text-3xl font-serif font-bold tracking-tight mb-2">Check Guidelines</h1>
+                        <p className="text-muted-foreground">Upload or drag an asset to verify compliance.</p>
+                    </div>
 
-                <div className="space-y-4">
-                    <label className="block text-sm font-medium">Select Brand</label>
-                    <select
-                        className="w-full p-3 rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                        value={selectedBrand}
-                        onChange={(e) => setSelectedBrand(e.target.value)}
+                    <div className="space-y-4">
+                        <label className="block text-sm font-medium">Select Brand</label>
+                        <select
+                            className="w-full p-4 rounded-xl border border-border bg-card text-foreground focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-sm"
+                            value={selectedBrand}
+                            onChange={(e) => setSelectedBrand(e.target.value)}
+                        >
+                            <option value="">-- Choose a Brand --</option>
+                            {brands.map(brand => (
+                                <option key={brand.id} value={brand.id}>{brand.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={cn(
+                            "flex-1 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-all duration-300 relative overflow-hidden group",
+                            (isDragOver || file || droppedUrl)
+                                ? "border-primary bg-primary/5 shadow-inner"
+                                : "border-border hover:border-primary/50 hover:bg-accent/30"
+                        )}
                     >
-                        <option value="">-- Choose a Brand --</option>
-                        {brands.map(brand => (
-                            <option key={brand.id} value={brand.id}>{brand.name}</option>
-                        ))}
-                    </select>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                            onChange={handleFileChange}
+                        />
+
+                        {(previewUrl) ? (
+                            <div className="relative w-full h-full flex items-center justify-center">
+                                <img
+                                    src={previewUrl}
+                                    alt="Preview"
+                                    className="max-h-full max-w-full object-contain rounded-xl shadow-2xl"
+                                />
+                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-medium z-10 pointer-events-none">
+                                    Click or Drop to Replace
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="text-center space-y-6 pointer-events-none">
+                                <div className={cn(
+                                    "w-20 h-20 rounded-full flex items-center justify-center mx-auto transition-transform duration-500",
+                                    isDragOver ? "bg-primary/20 scale-110" : "bg-primary/10"
+                                )}>
+                                    <Upload className={cn("w-10 h-10 text-primary transition-all", isDragOver && "animate-bounce")} />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-xl mb-2">Drag & Drop Asset</p>
+                                    <p className="text-muted-foreground text-sm max-w-[200px] mx-auto">
+                                        Upload from computer or drag directly from your assets sidebar
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={handleCheck}
+                        disabled={(!file && !droppedUrl) || isChecking}
+                        className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:shadow-primary/40 active:scale-[0.98]"
+                    >
+                        {isChecking ? (
+                            <>
+                                <Loader2 className="w-6 h-6 animate-spin" />
+                                Checking Compliance...
+                            </>
+                        ) : (
+                            <>
+                                <ShieldCheck className="w-6 h-6" />
+                                Run Quality Check
+                            </>
+                        )}
+                    </button>
                 </div>
 
-                <div
-                    className={cn(
-                        "flex-1 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-colors relative overflow-hidden",
-                        file ? "border-primary/50 bg-primary/5" : "border-border hover:border-primary/50 hover:bg-accent/50"
-                    )}
-                >
-                    <input
-                        type="file"
-                        accept="image/*"
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        onChange={handleFileChange}
-                    />
+                {/* Middle Panel - Results */}
+                <div className="w-1/2 bg-card/50 backdrop-blur-sm rounded-3xl border border-border p-8 flex flex-col overflow-y-auto relative shadow-sm">
+                    <h2 className="text-xl font-bold mb-6 flex items-center gap-2 sticky top-0 bg-card/95 p-2 -mx-2 backdrop-blur-md z-10 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-primary" />
+                        Analysis Results
+                    </h2>
 
-                    {previewUrl ? (
-                        <img src={previewUrl} alt="Preview" className="max-h-full max-w-full object-contain rounded-lg shadow-lg" />
-                    ) : (
-                        <div className="text-center space-y-4">
-                            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto text-primary">
-                                <Upload className="w-8 h-8" />
+                    {error && (
+                        <div className="p-4 rounded-xl bg-destructive/10 text-destructive flex items-center gap-3 animate-in slide-in-from-top-2">
+                            <AlertCircle className="w-5 h-5" />
+                            {error}
+                        </div>
+                    )}
+
+                    {isChecking && !result && (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground animate-pulse">
+                            <div className="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-6" />
+                            <p className="font-medium text-lg text-foreground">Analyzing Compliance...</p>
+                            <p className="text-sm mt-2">Checking against brand guidelines</p>
+                        </div>
+                    )}
+
+                    {result && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="space-y-6"
+                        >
+                            <div className="p-6 rounded-2xl bg-card border border-border/50 shadow-sm">
+                                <ResultDisplay data={result} />
                             </div>
-                            <div>
-                                <p className="font-medium text-lg">Click or drag image to upload</p>
-                                <p className="text-muted-foreground">Supports JPG, PNG, WEBP</p>
-                            </div>
+                        </motion.div>
+                    )}
+
+                    {!isChecking && !result && !error && (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground opacity-30">
+                            <ShieldCheck className="w-24 h-24 mb-6 stroke-1" />
+                            <p className="text-lg font-medium">Results will appear here</p>
                         </div>
                     )}
                 </div>
-
-                <button
-                    onClick={handleCheck}
-                    disabled={!file || isChecking}
-                    className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                    {isChecking ? (
-                        <>
-                            <Loader2 className="w-6 h-6 animate-spin" />
-                            Checking...
-                        </>
-                    ) : (
-                        "Run Quality Check"
-                    )}
-                </button>
             </div>
 
-            {/* Right Panel - Results */}
-            <div className="w-1/2 bg-card rounded-3xl border border-border p-8 flex flex-col overflow-y-auto">
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                    Analysis Results
-                </h2>
+            {/* Right Panel - Assets (Redesigned) */}
+            <div className="w-80 border-l border-border bg-card/30 backdrop-blur-xl p-6 flex flex-col rounded-l-3xl shadow-2xl border-y border-l hidden xl:flex">
+                <div className="mb-6">
+                    <h3 className="font-serif text-2xl font-bold mb-1 tracking-tight flex items-center gap-2">
+                        Assets
+                        <Sparkles className="w-4 h-4 text-primary" />
+                    </h3>
+                    <p className="text-xs text-muted-foreground">Drag items to analyze</p>
+                </div>
 
-                {error && (
-                    <div className="p-4 rounded-xl bg-destructive/10 text-destructive flex items-center gap-3">
-                        <AlertCircle className="w-5 h-5" />
-                        {error}
-                    </div>
-                )}
-
-                {isChecking && !result && (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground animate-pulse">
-                        <Loader2 className="w-12 h-12 mb-4 animate-spin text-primary" />
-                        <p>Analyzing asset against brand guidelines...</p>
-                        <p className="text-sm mt-2">This may take a few moments</p>
-                    </div>
-                )}
-
-                {result && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="space-y-6"
+                {/* Tabs */}
+                <div className="flex p-1.5 bg-muted/60 rounded-xl mb-6 backdrop-blur-sm border border-white/5">
+                    <button
+                        onClick={() => setActiveTab('generated')}
+                        className={cn(
+                            "flex-1 py-2.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
+                            activeTab === 'generated'
+                                ? "bg-background shadow-md text-primary ring-1 ring-black/5"
+                                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                        )}
                     >
-                        <div className="p-6 rounded-2xl bg-accent/30 border border-accent">
-                            <ResultDisplay data={result} />
-                        </div>
-                    </motion.div>
-                )}
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        Images
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('layers')}
+                        className={cn(
+                            "flex-1 py-2.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2",
+                            activeTab === 'layers'
+                                ? "bg-background shadow-md text-primary ring-1 ring-black/5"
+                                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                        )}
+                    >
+                        <Layers className="w-3.5 h-3.5" />
+                        Layers
+                    </button>
+                </div>
 
-                {!isChecking && !result && !error && (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground opacity-50">
-                        <ShieldCheck className="w-16 h-16 mb-4" />
-                        <p>Results will appear here after analysis</p>
+                {/* Asset Grid */}
+                <div className="flex-1 overflow-y-auto -mr-4 pr-4 customized-scrollbar space-y-4">
+                    <div className="grid grid-cols-2 gap-3 pb-4">
+                        <AnimatePresence mode="popLayout">
+                            {activeTab === 'generated' ? (
+                                assets.images.length > 0 ? (
+                                    assets.images.map((img) => (
+                                        <motion.div
+                                            key={img.id}
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            layout
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e as any, img.image_url || '')}
+                                            className="aspect-square rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing hover:ring-2 ring-primary ring-offset-2 ring-offset-card relative group bg-muted/20 shadow-sm border border-border/50 transition-all hover:shadow-lg hover:-translate-y-1"
+                                        >
+                                            {img.image_url && (
+                                                <img
+                                                    src={img.image_url}
+                                                    alt="Asset"
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-end pb-4">
+                                                <div className="px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border border-white/30 transform translate-y-4 group-hover:translate-y-0 transition-transform">
+                                                    <GripVertical className="w-3 h-3" />
+                                                    Drag
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-2 py-12 flex flex-col items-center justify-center text-center text-muted-foreground p-4 bg-muted/20 rounded-2xl border border-dashed border-border/60">
+                                        <ImageIcon className="w-10 h-10 mb-3 opacity-30" />
+                                        <p className="text-sm font-medium">No images yet</p>
+                                        <p className="text-xs opacity-60 mt-1">Generate some first!</p>
+                                    </div>
+                                )
+                            ) : (
+                                assets.layers.length > 0 ? (
+                                    assets.layers.map((layer) => (
+                                        <motion.div
+                                            key={layer.id}
+                                            initial={{ opacity: 0, scale: 0.9 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            layout
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e as any, layer.layer_url || '')}
+                                            className="aspect-square rounded-2xl overflow-hidden cursor-grab active:cursor-grabbing hover:ring-2 ring-primary ring-offset-2 ring-offset-card relative group bg-muted/20 shadow-sm border border-border/50 transition-all hover:shadow-lg hover:-translate-y-1"
+                                        >
+                                            {layer.layer_url && (
+                                                <img
+                                                    src={layer.layer_url}
+                                                    alt="Layer"
+                                                    className="w-full h-full object-cover"
+                                                    loading="lazy"
+                                                />
+                                            )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex flex-col items-center justify-end pb-4">
+                                                <div className="px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 border border-white/30 transform translate-y-4 group-hover:translate-y-0 transition-transform">
+                                                    <GripVertical className="w-3 h-3" />
+                                                    Drag
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-2 py-12 flex flex-col items-center justify-center text-center text-muted-foreground p-4 bg-muted/20 rounded-2xl border border-dashed border-border/60">
+                                        <Layers className="w-10 h-10 mb-3 opacity-30" />
+                                        <p className="text-sm font-medium">No layers found</p>
+                                        <p className="text-xs opacity-60 mt-1">Process canvas items first!</p>
+                                    </div>
+                                )
+                            )}
+                        </AnimatePresence>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     )
