@@ -252,7 +252,7 @@ export default function CheckGuidelinesPage() {
 
                     <button
                         onClick={handleCheck}
-                        disabled={(!file && !droppedUrl) || isChecking}
+                        disabled={!selectedBrand || (!file && !droppedUrl) || isChecking}
                         className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg shadow-primary/20 hover:shadow-primary/40 active:scale-[0.98]"
                     >
                         {isChecking ? (
