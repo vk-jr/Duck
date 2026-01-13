@@ -123,6 +123,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
 
     const handleMouseDown = (e: React.MouseEvent, layerId: string) => {
         if (isDrawingMode || isProcessing) return // Don't select layers when drawing or processing
+        e.preventDefault()
         e.stopPropagation()
         onLayerSelect(layerId)
 
@@ -137,6 +138,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
     }
 
     const handleResizeStart = (e: React.MouseEvent, position: string) => {
+        e.preventDefault()
         e.stopPropagation()
         if (!activeLayerId) return
 
@@ -155,6 +157,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
     // Drawing Handlers
     const handleDrawStart = (e: React.MouseEvent) => {
         if (!isDrawingMode || !containerRef.current || isProcessing) return
+        e.preventDefault()
         e.stopPropagation()
 
         const rect = containerRef.current.getBoundingClientRect()
@@ -445,6 +448,7 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
                             <div
                                 key={layer.id}
                                 onMouseDown={(e) => handleMouseDown(e, layer.id)}
+                                draggable={false}
                                 className={cn(
                                     "absolute select-none",
                                     isActive ? "ring-2 ring-primary ring-opacity-100 z-10" : "hover:ring-1 hover:ring-primary/50"

@@ -4,7 +4,6 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ReactFlow, {
     MiniMap,
-    Controls,
     Background,
     useNodesState,
     useEdgesState,
@@ -25,6 +24,7 @@ import { Wand2, Save, Upload, MousePointer2, PanelRightOpen, History, Maximize, 
 import { cn } from '@/lib/utils'
 import { processCanvasImage, saveCanvasState } from './actions'
 import ImageEditor from '@/components/canvas/image-editor'
+import { ZoomSlider } from '@/components/canvas/zoom-slider'
 
 // Register custom node types
 const nodeTypes = {
@@ -499,7 +499,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                 {editModeData && (
                     <ImageEditor
                         baseImage={editModeData.baseImage}
-                        layers={editModeData.layers}
+                        layers={[]}
                         activeLayerId={activeLayerId}
                         onLayerSelect={setActiveLayerId}
                         activeRectangle={activeRectangle}
@@ -627,7 +627,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
 
                     className="bg-secondary/10"
                 >
-                    <Controls className="!bg-card !border-border !fill-foreground !rounded-lg !overflow-hidden [&>button]:!border-b-border last:[&>button]:!border-b-0 !left-4 !bottom-4 !transform-none !shadow-xl" />
+                    <ZoomSlider />
                     <MiniMap
                         className="!bg-card !border-border !rounded-lg !overflow-hidden !bottom-4 !right-4 !left-auto !m-0 shadow-xl"
                         nodeColor="#EAB308"
