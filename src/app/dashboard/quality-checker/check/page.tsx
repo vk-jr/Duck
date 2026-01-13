@@ -105,11 +105,11 @@ export default function CheckGuidelinesPage() {
         pollInterval.current = setInterval(async () => {
             const check = await getQualityCheck(checkId)
 
-            if (check && check.status === 'completed' && check.result) {
+            if (check && check.status?.toLowerCase() === 'completed' && check.result) {
                 setResult(check.result)
                 setIsChecking(false)
                 if (pollInterval.current) clearInterval(pollInterval.current)
-            } else if (check && check.status === 'failed') {
+            } else if (check && (check.status?.toLowerCase() === 'failed' || check.status?.toLowerCase() === 'error')) {
                 setError('Quality check failed')
                 setIsChecking(false)
                 if (pollInterval.current) clearInterval(pollInterval.current)
