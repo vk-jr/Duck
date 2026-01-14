@@ -155,7 +155,8 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
                 metadata: {
                     type: type,
                     original_url: imageUrl,
-                    rectangle: rectangle // Send rectangle to webhook
+                    rectangle: rectangle, // Send rectangle to webhook
+                    log_id: logEntry?.id
                 }
             })
         })

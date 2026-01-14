@@ -122,7 +122,8 @@ export async function generateImage(formData: FormData) {
                 user_id: user.id,
                 log_id: logEntry?.id, // Pass Log ID
                 metadata: {
-                    type: generationType
+                    type: generationType,
+                    log_id: logEntry?.id
                 }
             })
         })

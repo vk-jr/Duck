@@ -216,7 +216,8 @@ export async function createQualityCheck(formData: FormData) {
             user_id: userId,
             log_id: logEntry?.id, // Pass Log ID
             metadata: {
-                type: 'check'
+                type: 'check',
+                log_id: logEntry?.id
             }
         }
 
@@ -339,7 +340,8 @@ export async function generateBrandGuidelines(formData: FormData) {
             log_id: logEntry?.id,
             metadata: {
                 type: 'brand_guide',
-                reference_image_url: publicUrl
+                reference_image_url: publicUrl,
+                log_id: logEntry?.id
             }
         }
 
