@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { Handle, Position, useReactFlow } from 'reactflow'
-import { Bird, X, Pencil } from 'lucide-react'
+import { Bird, X, Pencil, Wand2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 function ImageNode({ id, data }: { id: string, data: { label: string, src: string, type: 'layer' | 'background', status?: string, onEdit?: (id: string) => void } }) {
@@ -26,17 +26,41 @@ function ImageNode({ id, data }: { id: string, data: { label: string, src: strin
                 data.status === 'generating' && "ring-primary/50 border-primary/20"
             )}>
                 {data.status === 'generating' ? (
-                    <div className="w-[300px] h-[300px] flex flex-col items-center justify-center gap-4 bg-zinc-900/50 backdrop-blur-sm relative overflow-hidden">
-                        {/* Shimmer Effect */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_2s_infinite]" />
+                    <div className="w-[300px] h-[300px] flex flex-col items-center justify-center gap-4 bg-black/90 relative overflow-hidden ring-1 ring-white/10">
 
-                        <div className="relative">
-                            <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <Bird className="w-5 h-5 opacity-20 animate-pulse" />
+                        {/* Matrix/Grid Background Effect */}
+                        <div className="absolute inset-0 opacity-10"
+                            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                        </div>
+
+                        {/* Scanning Beam */}
+                        <div className="absolute top-0 left-0 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(234,179,8,0.8)] animate-[scan_2s_ease-in-out_infinite]" />
+
+                        {/* Central Animated Icon */}
+                        <div className="relative z-10">
+                            <div className="w-16 h-16 rounded-xl border border-primary/30 flex items-center justify-center bg-primary/5 shadow-[0_0_30px_rgba(234,179,8,0.1)]">
+                                <Wand2 className="w-8 h-8 text-primary animate-pulse" />
+                            </div>
+                            {/* Orbiting Particles */}
+                            <div className="absolute inset-0 animate-[spin_3s_linear_infinite]">
+                                <div className="absolute top-0 left-1/2 w-1.5 h-1.5 bg-primary rounded-full shadow-[0_0_10px_rgba(234,179,8,0.8)] -translate-x-1/2 -translate-y-1/2"></div>
                             </div>
                         </div>
-                        <span className="text-xs text-muted-foreground animate-pulse font-medium">Generating Layer...</span>
+
+                        {/* Status Text with Typing/Pulse */}
+                        <div className="space-y-1 text-center z-10">
+                            <div className="text-sm font-bold text-primary tracking-widest uppercase">
+                                Initializing
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono animate-pulse">
+                                Processing Backend Request...
+                            </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden mt-2 z-10">
+                            <div className="h-full bg-primary/80 animate-[progress_2s_ease-in-out_infinite] w-full origin-left" />
+                        </div>
                     </div>
                 ) : !data.src ? (
                     <div className="p-4 flex flex-col items-center justify-center gap-2 text-muted-foreground bg-zinc-900 min-w-[200px] min-h-[200px]">

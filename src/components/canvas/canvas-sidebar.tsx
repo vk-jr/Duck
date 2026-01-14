@@ -141,18 +141,36 @@ export default function CanvasSidebar({
                                 </button>
                             </div>
 
-                            <button
-                                onClick={() => onProcess('', 'rectangle')} // Sending 'rectangle' as requested
-                                disabled={isProcessing || !activeRectangle}
-                                className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                            >
-                                {isProcessing ? (
-                                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                                ) : (
+                            {isProcessing ? (
+                                <div className="w-full bg-secondary/30 rounded-xl overflow-hidden border border-primary/20 p-4 space-y-3 relative">
+                                    {/* Shimmer/Pulse Background */}
+                                    <div className="absolute inset-0 bg-primary/5 animate-pulse" />
+
+                                    <div className="flex items-center gap-3 relative z-10">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                                            <Wand2 className="w-4 h-4 text-primary animate-spin" />
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="text-xs font-bold text-foreground">Segmenting Object</div>
+                                            <div className="text-[10px] text-muted-foreground font-mono animate-pulse">Initializing Backend...</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress Bar */}
+                                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden relative z-10">
+                                        <div className="h-full bg-primary animate-[progress_2s_ease-in-out_infinite] w-full origin-left" />
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => onProcess('', 'rectangle')}
+                                    disabled={!activeRectangle}
+                                    className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                >
                                     <Wand2 className="w-4 h-4" />
-                                )}
-                                Segment Region
-                            </button>
+                                    Segment Region
+                                </button>
+                            )}
                         </div>
                     )}
 
@@ -169,18 +187,36 @@ export default function CanvasSidebar({
                                 />
                             </div>
 
-                            <button
-                                onClick={() => onProcess(layerText, 'segment')} // Sending 'segment' as requested
-                                disabled={isProcessing || !layerText}
-                                className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                            >
-                                {isProcessing ? (
-                                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                                ) : (
+                            {isProcessing ? (
+                                <div className="w-full bg-secondary/30 rounded-xl overflow-hidden border border-primary/20 p-4 space-y-3 relative">
+                                    {/* Shimmer/Pulse Background */}
+                                    <div className="absolute inset-0 bg-primary/5 animate-pulse" />
+
+                                    <div className="flex items-center gap-3 relative z-10">
+                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                                            <Wand2 className="w-4 h-4 text-primary animate-spin" />
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="text-xs font-bold text-foreground">Segmenting Object</div>
+                                            <div className="text-[10px] text-muted-foreground font-mono animate-pulse">Initializing Backend...</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Progress Bar */}
+                                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden relative z-10">
+                                        <div className="h-full bg-primary animate-[progress_2s_ease-in-out_infinite] w-full origin-left" />
+                                    </div>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => onProcess(layerText, 'segment')}
+                                    disabled={!layerText}
+                                    className="w-full bg-primary text-primary-foreground font-bold py-3 rounded-xl hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20"
+                                >
                                     <Wand2 className="w-4 h-4" />
-                                )}
-                                Segment Text
-                            </button>
+                                    Segment Text
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
