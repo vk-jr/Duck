@@ -12,6 +12,18 @@ interface ProcessCanvasParams {
 }
 
 import { logWorkflow } from '@/lib/workflow-logger'
+import { createClient as createBaseClient } from '@/lib/supabase/client'
+
+export async function getWorkflowLog(id: string) {
+    const supabase = await createBaseClient()
+    const { data, error } = await supabase
+        .from('workflow_logs')
+        .select('*')
+        .eq('id', id)
+        .single()
+    if (error) return null
+    return data
+}
 
 export async function processCanvasImage({ imageId, imageUrl, brandId, text, type, rectangle }: ProcessCanvasParams) {
     // Use service role client to bypass RLS policies for insertion
@@ -165,7 +177,7 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
             throw new Error(`Webhook failed: ${response.statusText}`)
         }
 
-        return { success: true, layerId: layer.id }
+        return { success: true, layerId: layer.id, logId: logEntry?.id }
     } catch (err) {
         console.error('Canvas Webhook Error:', err)
         await logWorkflow(adminSupabase, {

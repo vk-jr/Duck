@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Sparkles, Image as ImageIcon, Loader2, ChevronDown, Plus, Wand2, Download, Edit, RefreshCw, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { generateImage } from './actions'
+import { generateImage, getWorkflowLog } from './actions'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -19,6 +19,7 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
     const [prompt, setPrompt] = useState('')
     const [selectedBrandId, setSelectedBrandId] = useState<string>(brands[0]?.id || '')
     const [currentImageId, setCurrentImageId] = useState<string | null>(null)
+    const [currentLogId, setCurrentLogId] = useState<string | null>(null)
     const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null)
     const [isFocused, setIsFocused] = useState(false)
 
@@ -27,61 +28,104 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
 
     // Polling / Realtime Effect
     useEffect(() => {
-        if (!currentImageId) return
+        if (!currentImageId && !currentLogId) return
 
         const checkStatus = async () => {
-            const { data } = await supabase
-                .from('generated_images')
-                .select('status, image_url')
-                .eq('id', currentImageId)
-                .single()
+            // 1. Check Log Status (Primary Gatekeeper)
+            if (currentLogId) {
+                const log = await getWorkflowLog(currentLogId)
+                if (log) {
+                    const status = log.execution_status
+                    // Pending
+                    if (status === 'PENDING') {
+                        // continue
+                    }
+                    // Success
+                    else if (status === '200') {
+                        // success, check entity below
+                    }
+                    // Error (Any other status)
+                    else {
+                        let errorMsg = 'Workflow failed'
+                        if (log.details && typeof log.details === 'string') {
+                            errorMsg = log.details
+                        } else if (log.details && typeof log.details === 'object' && log.details.message) {
+                            errorMsg = log.details.message
+                        } else if (log.message) {
+                            errorMsg = log.message
+                        }
 
-            if (data?.image_url && data?.status?.toLowerCase() === 'generated') {
-                setGeneratedImageUrl(data.image_url)
-                setIsGenerating(false)
-                setCurrentImageId(null)
-                router.refresh()
-                return true // Done
-            } else if (data?.status === 'failed') {
-                setIsGenerating(false)
-                setCurrentImageId(null)
-                alert('Generation failed.')
-                return true // Done
+                        setIsGenerating(false)
+                        setCurrentImageId(null)
+                        setCurrentLogId(null)
+                        alert(`${errorMsg} (Error: ${status})`)
+                        return true
+                    }
+                }
+            }
+
+            // 2. Check Entity Status
+            if (currentImageId) {
+                const { data } = await supabase
+                    .from('generated_images')
+                    .select('status, image_url, processing_code, error_message')
+                    .eq('id', currentImageId)
+                    .single()
+
+                if (data) {
+                    if (data.image_url && (data.processing_code === 200 || data.status?.toLowerCase() === 'generated')) {
+                        setGeneratedImageUrl(data.image_url)
+                        setIsGenerating(false)
+                        setCurrentImageId(null)
+                        setCurrentLogId(null)
+                        router.refresh()
+                        return true // Done
+                    } else if ((data.processing_code && data.processing_code >= 400) || data.status === 'failed') {
+                        setIsGenerating(false)
+                        setCurrentImageId(null)
+                        setCurrentLogId(null)
+                        alert(data.error_message || 'Generation failed.')
+                        return true // Done
+                    }
+                }
             }
             return false // Keep waiting
         }
 
-        // 1. Check Immediately (in case it finished fast)
+        // 1. Check Immediately
         checkStatus()
 
-        // 2. Realtime Subscription
-        const channel = supabase
-            .channel('schema-db-changes')
-            .on(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'generated_images',
-                    filter: `id=eq.${currentImageId}`
-                },
-                (payload) => {
-                    checkStatus()
-                }
-            )
-            .subscribe()
+        // 2. Realtime Subscription (Only if we have an image ID to watch)
+        let channel: any = null
+        if (currentImageId) {
+            channel = supabase
+                .channel('schema-db-changes')
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'generated_images',
+                        filter: `id=eq.${currentImageId}`
+                    },
+                    (payload) => {
+                        checkStatus()
+                    }
+                )
+                .subscribe()
+        }
 
-        // 3. Polling Fallback (every 2s)
+        // 3. Polling Fallback
         const interval = setInterval(async () => {
             const isDone = await checkStatus()
             if (isDone) clearInterval(interval)
         }, 2000)
 
         return () => {
-            supabase.removeChannel(channel)
+            if (channel) supabase.removeChannel(channel)
             clearInterval(interval)
         }
-    }, [currentImageId, supabase, router])
+    }, [currentImageId, currentLogId, supabase, router])
 
     const handleGenerate = async () => {
         if (!prompt) return
@@ -119,6 +163,7 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
 
         if (result.success && result.imageId) {
             setCurrentImageId(result.imageId)
+            if (result.logId) setCurrentLogId(result.logId)
         }
     }
 

@@ -187,6 +187,32 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
         })
     }
 
+    // Helper to get the actual dimensions and offset of the rendered image within the img element
+    const getRenderedDimensions = (img: HTMLImageElement) => {
+        const { naturalWidth, naturalHeight } = img
+        const { width: clientWidth, height: clientHeight } = img.getBoundingClientRect()
+        const ratio = naturalWidth / naturalHeight
+        const clientRatio = clientWidth / clientHeight
+
+        let renderedWidth, renderedHeight, left, top
+
+        if (clientRatio > ratio) {
+            // Image is pillar-boxed (height is the constraint)
+            renderedHeight = clientHeight
+            renderedWidth = clientHeight * ratio
+            top = 0
+            left = (clientWidth - renderedWidth) / 2
+        } else {
+            // Image is letter-boxed (width is the constraint) or fits perfectly
+            renderedWidth = clientWidth
+            renderedHeight = clientWidth / ratio
+            left = 0
+            top = (clientHeight - renderedHeight) / 2
+        }
+
+        return { width: renderedWidth, height: renderedHeight, left, top }
+    }
+
     const handleDrawEnd = () => {
         if (!isDrawing || !currentDrawRect || !containerRef.current) return
 
@@ -195,21 +221,30 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
         // Calculate original image coordinates
         const imgElement = containerRef.current.querySelector('img') as HTMLImageElement
         if (imgElement) {
-            // Use getBoundingClientRect for precise displayed dimensions (handles borders, object-fit, zooming)
-            const imgRect = imgElement.getBoundingClientRect()
             const containerRect = containerRef.current.getBoundingClientRect()
+            const imgRect = imgElement.getBoundingClientRect()
+            const rendered = getRenderedDimensions(imgElement)
 
-            // Calculate the offset of the image within the container (e.g. due to borders or centering)
-            const offsetX = imgRect.left - containerRect.left
-            const offsetY = imgRect.top - containerRect.top
+            // Calculate the absolute position of the rendered image on screen
+            // imgRect.left is the element left. rendered.left is offset within element.
+            const absImageLeft = imgRect.left + rendered.left
+            const absImageTop = imgRect.top + rendered.top
 
-            // Adjust the drawn rect (which is relative to container) to be relative to the image
+            // Calculate offset relative to the container (which is the coordinate system of currentDrawRect)
+            const offsetX = absImageLeft - containerRect.left
+            const offsetY = absImageTop - containerRect.top
+
+            // Valid Drawing Area relative to container:
+            // X: offsetX to offsetX + rendered.width
+            // Y: offsetY to offsetY + rendered.height
+
+            // Adjust drawn rect to be relative to the Rendered Image Top-Left
             const drawXWithinImage = currentDrawRect.x - offsetX
             const drawYWithinImage = currentDrawRect.y - offsetY
 
-            // Calculate Scale Factors: Natural / Displayed
-            const scaleX = imgElement.naturalWidth / imgRect.width
-            const scaleY = imgElement.naturalHeight / imgRect.height
+            // Calculate Scale Factors: Natural / Rendered
+            const scaleX = imgElement.naturalWidth / rendered.width
+            const scaleY = imgElement.naturalHeight / rendered.height
 
             // Apply scaling
             const x1 = Math.round(drawXWithinImage * scaleX)
@@ -220,28 +255,20 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
             const x2 = x1 + w
             const y2 = y1 + h
 
-            // Ensure coordinates are within bounds (optional but good practice)
-            const clampedX1 = Math.max(0, x1)
-            const clampedY1 = Math.max(0, y1)
-            const clampedX2 = Math.min(imgElement.naturalWidth, x2)
-            const clampedY2 = Math.min(imgElement.naturalHeight, y2)
+            // Clamp coordinates to image bounds to prevent negative or overflow
+            const finalX1 = Math.max(0, Math.min(imgElement.naturalWidth, x1))
+            const finalY1 = Math.max(0, Math.min(imgElement.naturalHeight, y1))
+            const finalX2 = Math.max(0, Math.min(imgElement.naturalWidth, x2))
+            const finalY2 = Math.max(0, Math.min(imgElement.naturalHeight, y2))
 
-            // We'll stick to raw calculation as per user request to "not change anything else" but clamping is usually desired.
-            // User example: 0,0 -> 400,400.
-            // If I draw slightly outside, x could be negative.
-            // I'll clamp to 0 minimum.
-
-            const finalX1 = Math.max(0, x1)
-            const finalY1 = Math.max(0, y1)
-            const finalX2 = Math.min(imgElement.naturalWidth, x2)
-            const finalY2 = Math.min(imgElement.naturalHeight, y2)
-
-            // Actually user said "Don't change anything else". I should probably trust the math.
-            // But negative coordinates are definitely wrong for this model usually.
-            // I will return [finalX1, finalY1, finalX2, finalY2]
+            // Ensure x1 < x2 and y1 < y2
+            const ordX1 = Math.min(finalX1, finalX2)
+            const ordX2 = Math.max(finalX1, finalX2)
+            const ordY1 = Math.min(finalY1, finalY2)
+            const ordY2 = Math.max(finalY1, finalY2)
 
             if (onRectangleChange) {
-                onRectangleChange([finalX1, finalY1, finalX2, finalY2])
+                onRectangleChange([ordX1, ordY1, ordX2, ordY2])
             }
         }
     }
@@ -345,14 +372,17 @@ export default function ImageEditor({ baseImage, layers, onExit, activeLayerId, 
             const imgElement = containerRef.current.querySelector('img') as HTMLImageElement
             if (imgElement) {
                 const imgRect = imgElement.getBoundingClientRect()
-                // We need container rect to calculate offset relative to container (position: absolute context)
                 const containerRect = containerRef.current.getBoundingClientRect()
+                const rendered = getRenderedDimensions(imgElement)
 
-                const offsetX = imgRect.left - containerRect.left
-                const offsetY = imgRect.top - containerRect.top
+                const absImageLeft = imgRect.left + rendered.left
+                const absImageTop = imgRect.top + rendered.top
 
-                const scaleX = imgRect.width / imgElement.naturalWidth
-                const scaleY = imgRect.height / imgElement.naturalHeight
+                const offsetX = absImageLeft - containerRect.left
+                const offsetY = absImageTop - containerRect.top
+
+                const scaleX = rendered.width / imgElement.naturalWidth
+                const scaleY = rendered.height / imgElement.naturalHeight
 
                 const [x1, y1, x2, y2] = activeRectangle
 

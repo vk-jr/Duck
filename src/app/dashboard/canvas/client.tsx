@@ -22,7 +22,7 @@ import CanvasSidebar from '@/components/canvas/canvas-sidebar'
 import MemoryPanel from '@/components/canvas/memory-panel'
 import { Wand2, Save, Upload, MousePointer2, PanelRightOpen, History, Maximize, Minimize } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { processCanvasImage, saveCanvasState } from './actions'
+import { processCanvasImage, saveCanvasState, getWorkflowLog } from './actions'
 import ImageEditor from '@/components/canvas/image-editor'
 import { ZoomSlider } from '@/components/canvas/zoom-slider'
 
@@ -100,8 +100,8 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }, [])
 
-    // Track pending generations: Map<layerId, { sourceNodeId: string, instruction: string }>
-    const pendingGenerations = useRef<Map<string, { sourceNodeId: string, instruction: string }>>(new Map())
+    // Track pending generations: Map<layerId, { sourceNodeId: string, instruction: string, logId?: string }>
+    const pendingGenerations = useRef<Map<string, { sourceNodeId: string, instruction: string, logId?: string }>>(new Map())
 
     // Auto-save Logic
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -112,7 +112,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         saveTimeoutRef.current = setTimeout(async () => {
             const viewport = getViewport()
 
-            // Sanitize nodes to remove non-serializable properties (like internal symbols)
+            // Sanitize nodes to remove non-serializable properties
             const sanitizedNodes = nodes.map(node => ({
                 id: node.id,
                 type: node.type,
@@ -140,12 +140,11 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
             }))
 
             const state = {
-                nodes: JSON.parse(JSON.stringify(sanitizedNodes)), // Deep copy to ensure no refs
+                nodes: JSON.parse(JSON.stringify(sanitizedNodes)),
                 edges: JSON.parse(JSON.stringify(sanitizedEdges)),
                 viewport
             }
 
-            // Only save if there's something to save
             if (nodes.length === 0 && edges.length === 0) return
 
             console.log('Auto-saving canvas state...')
@@ -153,7 +152,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
             if (result.success) {
                 setLastSaved(new Date())
             }
-        }, 2000) // Debounce 2s
+        }, 2000)
     }, [nodes, edges, getViewport])
 
     // Trigger save on changes
@@ -169,7 +168,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
     }, [setNodes, setEdges, setViewport])
 
 
-    // Listen for Realtime Updates from Supabase
+    // Listen for Realtime Updates from Supabase & Poll
     React.useEffect(() => {
         const supabase = createClient()
         const channel = supabase
@@ -224,17 +223,60 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         }
 
         // Polling Fallback (Every 3 seconds)
-        // This ensures that even if Realtime RLS fails, we can still fetch the image
         const intervalId = setInterval(async () => {
             if (pendingGenerations.current.size === 0) return
 
             // Check each pending layer
             for (const [layerId, pending] of Array.from(pendingGenerations.current.entries())) {
-                const { getLayerStatus } = await import('./actions') // Dynamic import to avoid server-action build issues in client effect if any
+                const { getLayerStatus, getWorkflowLog } = await import('./actions')
+
+                // 1. Check Log Status (Primary Gatekeeper)
+                if (pending.logId) {
+                    const log = await getWorkflowLog(pending.logId)
+                    if (log) {
+                        const status = log.execution_status
+
+                        // Pending
+                        if (status === 'PENDING') {
+                            // continue
+                        }
+                        // Success
+                        else if (status === '200') {
+                            // Proceed
+                        }
+                        // Error
+                        else {
+                            let errorMsg = 'Workflow failed'
+                            if (log.details && typeof log.details === 'string') {
+                                errorMsg = log.details
+                            } else if (log.details && typeof log.details === 'object' && log.details.message) {
+                                errorMsg = log.details.message
+                            } else if (log.message) {
+                                errorMsg = log.message
+                            }
+
+                            alert(`Layer generation failed: ${errorMsg} (Error: ${status})`)
+
+                            pendingGenerations.current.delete(layerId)
+
+                            setNodes((currentNodes) => currentNodes.map(node => {
+                                if (node.id === pending.sourceNodeId) {
+                                    return {
+                                        ...node,
+                                        data: { ...node.data, status: 'error', label: 'Failed' }
+                                    }
+                                }
+                                return node
+                            }))
+                            continue
+                        }
+                    }
+                }
+
+                // 2. Check Entity Status
                 const result = await getLayerStatus(layerId)
 
                 if (result.success && result.data && result.data.status?.toLowerCase() === 'generated') {
-                    // Construct layer-like object from result
                     const layer = {
                         id: layerId,
                         layer_url: result.data.layer_url,
@@ -380,7 +422,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
 
             if (layerId) {
                 // Map the real Layer ID to our Temp Node ID so we can update it later
-                pendingGenerations.current.set(layerId, { sourceNodeId: tempNodeId, instruction: text })
+                pendingGenerations.current.set(layerId, { sourceNodeId: tempNodeId, instruction: text, logId: result.logId })
 
                 // OPTIONAL: Update the node ID to match the layer ID? 
                 // It's cleaner to keep the temp ID or update it. 

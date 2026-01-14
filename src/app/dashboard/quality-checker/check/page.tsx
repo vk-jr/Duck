@@ -103,11 +103,45 @@ export default function CheckGuidelinesPage() {
         if (pollInterval.current) clearInterval(pollInterval.current)
 
         pollInterval.current = setInterval(async () => {
-            // 1. Check Entity Status (Primary Source of Truth)
+            // 1. Check Log Status (Primary Gatekeeper)
+            if (logId) {
+                const log = await getWorkflowLog(logId)
+                if (log) {
+                    const status = log.execution_status
+
+                    // Pending
+                    if (status === 'PENDING') {
+                        // continue polling
+                    }
+                    // Success (Green Light)
+                    else if (status === '200') {
+                        // proceed to entity check
+                    }
+                    // Any other status (Error)
+                    else {
+                        let errorMsg = 'Workflow failed'
+                        if (log.details && typeof log.details === 'string') {
+                            errorMsg = log.details
+                        } else if (log.details && typeof log.details === 'object' && log.details.message) {
+                            errorMsg = log.details.message
+                        } else if (log.message) {
+                            errorMsg = log.message
+                        }
+
+                        setError(`${errorMsg} (Error: ${status})`)
+                        setIsChecking(false)
+                        if (pollInterval.current) clearInterval(pollInterval.current)
+                        return
+                    }
+                }
+            }
+
+            // 2. Check Entity Status (Final Data Source)
+            // If log said 200 (or skipped if no logId?), check entity
             const check = await getQualityCheck(checkId)
 
             if (check) {
-                // Happy Path: Processing Code 200 OR Status 'completed'
+                // Happy Path
                 if ((check.processing_code === 200 || check.status?.toLowerCase() === 'completed') && check.result) {
                     setResult(check.result)
                     setIsChecking(false)
@@ -115,24 +149,9 @@ export default function CheckGuidelinesPage() {
                     return
                 }
 
-                // Error Path: Processing Code indicates error OR Status 'failed'
-                // If processing_code is present and NOT 200 (and not null/0), it's likely an error if status isn't generating?
-                // Actually user said: "if it says 200 you should proceed... if it shows an error... show that message"
-                // So if processing_code is NOT 200 and NOT null, it might be an error?
-                // Let's assume > 299 is error.
+                // Entity Error Path
                 if ((check.processing_code && check.processing_code >= 400) || check.status?.toLowerCase() === 'failed' || check.status?.toLowerCase() === 'error') {
                     setError(check.error_message || 'Quality check failed')
-                    setIsChecking(false)
-                    if (pollInterval.current) clearInterval(pollInterval.current)
-                    return
-                }
-            }
-
-            // 2. Fallback: Check Log Status (Secondary Debug Info)
-            if (logId) {
-                const log = await getWorkflowLog(logId)
-                if (log && (log.execution_status === 'ERROR' || log.status_category === 'API_ERROR' || log.status_category === 'CONFIG_ERROR')) {
-                    setError(log.message || 'Workflow failed')
                     setIsChecking(false)
                     if (pollInterval.current) clearInterval(pollInterval.current)
                     return

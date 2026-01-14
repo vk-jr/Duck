@@ -3,6 +3,18 @@
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { logWorkflow } from '@/lib/workflow-logger'
+import { createClient as createBaseClient } from '@/lib/supabase/client'
+
+export async function getWorkflowLog(id: string) {
+    const supabase = await createBaseClient()
+    const { data, error } = await supabase
+        .from('workflow_logs')
+        .select('*')
+        .eq('id', id)
+        .single()
+    if (error) return null
+    return data
+}
 
 export async function generateImage(formData: FormData) {
     const supabase = await createClient()
@@ -155,5 +167,5 @@ export async function generateImage(formData: FormData) {
     // For now, removing the explicit "Success" log at the end as per the new pattern of "Pending -> N8N updates".
 
     revalidatePath('/dashboard/generator')
-    return { success: true, imageId: insertedImage.id }
+    return { success: true, imageId: insertedImage.id, logId: logEntry?.id }
 }
