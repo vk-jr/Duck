@@ -89,10 +89,23 @@ export async function generateImage(formData: FormData) {
             category: 'CONFIG_ERROR',
             message: 'Webhook URL not configured',
             userId: user.id,
-            brandId: activeBrandId
+            brandId: activeBrandId,
+            executionStatus: 'ERROR'
         })
         return { error: 'Webhook URL not configured' }
     }
+
+    // Initiate Workflow Log
+    const logEntry = await logWorkflow(adminSupabase, {
+        workflowName: 'image_generation',
+        statusCode: 202,
+        category: 'SUCCESS',
+        message: 'Image Generation Initiated',
+        userId: user.id,
+        brandId: activeBrandId,
+        metadata: { image_id: insertedImage.id, prompt: prompt },
+        executionStatus: 'PENDING'
+    })
 
     try {
         // Sending as POST body.
@@ -107,6 +120,7 @@ export async function generateImage(formData: FormData) {
                 image_id: insertedImage.id, // THE KEY: n8n should use this to Update the row
                 brand_id: activeBrandId,
                 user_id: user.id,
+                log_id: logEntry?.id, // Pass Log ID
                 metadata: {
                     type: generationType
                 }
@@ -129,21 +143,15 @@ export async function generateImage(formData: FormData) {
             details: err,
             userId: user.id,
             brandId: activeBrandId,
-            metadata: { image_id: insertedImage.id }
+            metadata: { image_id: insertedImage.id },
+            executionStatus: 'ERROR'
         })
         return { error: 'Failed to trigger AI agent.' }
     }
 
-    // Success Log
-    await logWorkflow(adminSupabase, {
-        workflowName: 'image_generation',
-        statusCode: 200,
-        category: 'SUCCESS',
-        message: 'Workflow triggered successfully',
-        userId: user.id,
-        brandId: activeBrandId,
-        metadata: { image_id: insertedImage.id, prompt: prompt }
-    })
+    // Success Log - Optional, or we can just leave it as PENDING for N8N to finish.
+    // If we want to mark "Hand off success", we can log another entry or update logic (future).
+    // For now, removing the explicit "Success" log at the end as per the new pattern of "Pending -> N8N updates".
 
     revalidatePath('/dashboard/generator')
     return { success: true, imageId: insertedImage.id }

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, CheckCircle, AlertCircle, Loader2, ShieldCheck, Image as ImageIcon, GripVertical, Layers, Sparkles } from 'lucide-react'
-import { getBrands, createQualityCheck, getQualityCheck, getUserAssets } from '@/app/actions/quality-checker'
+import { getBrands, createQualityCheck, getQualityCheck, getUserAssets, getWorkflowLog } from '@/app/actions/quality-checker'
 import { cn } from '@/lib/utils'
 
 interface Brand {
@@ -99,20 +99,44 @@ export default function CheckGuidelinesPage() {
         e.dataTransfer.effectAllowed = 'copy'
     }
 
-    const startPolling = (checkId: string) => {
+    const startPolling = (checkId: string, logId?: string) => {
         if (pollInterval.current) clearInterval(pollInterval.current)
 
         pollInterval.current = setInterval(async () => {
+            // 1. Check Entity Status (Primary Source of Truth)
             const check = await getQualityCheck(checkId)
 
-            if (check && check.status?.toLowerCase() === 'completed' && check.result) {
-                setResult(check.result)
-                setIsChecking(false)
-                if (pollInterval.current) clearInterval(pollInterval.current)
-            } else if (check && (check.status?.toLowerCase() === 'failed' || check.status?.toLowerCase() === 'error')) {
-                setError('Quality check failed')
-                setIsChecking(false)
-                if (pollInterval.current) clearInterval(pollInterval.current)
+            if (check) {
+                // Happy Path: Processing Code 200 OR Status 'completed'
+                if ((check.processing_code === 200 || check.status?.toLowerCase() === 'completed') && check.result) {
+                    setResult(check.result)
+                    setIsChecking(false)
+                    if (pollInterval.current) clearInterval(pollInterval.current)
+                    return
+                }
+
+                // Error Path: Processing Code indicates error OR Status 'failed'
+                // If processing_code is present and NOT 200 (and not null/0), it's likely an error if status isn't generating?
+                // Actually user said: "if it says 200 you should proceed... if it shows an error... show that message"
+                // So if processing_code is NOT 200 and NOT null, it might be an error?
+                // Let's assume > 299 is error.
+                if ((check.processing_code && check.processing_code >= 400) || check.status?.toLowerCase() === 'failed' || check.status?.toLowerCase() === 'error') {
+                    setError(check.error_message || 'Quality check failed')
+                    setIsChecking(false)
+                    if (pollInterval.current) clearInterval(pollInterval.current)
+                    return
+                }
+            }
+
+            // 2. Fallback: Check Log Status (Secondary Debug Info)
+            if (logId) {
+                const log = await getWorkflowLog(logId)
+                if (log && (log.execution_status === 'ERROR' || log.status_category === 'API_ERROR' || log.status_category === 'CONFIG_ERROR')) {
+                    setError(log.message || 'Workflow failed')
+                    setIsChecking(false)
+                    if (pollInterval.current) clearInterval(pollInterval.current)
+                    return
+                }
             }
         }, 3000)
     }
@@ -133,7 +157,7 @@ export default function CheckGuidelinesPage() {
             const response = await createQualityCheck(formData)
 
             if (response.success && response.data?.id) {
-                startPolling(response.data.id)
+                startPolling(response.data.id, response.logId)
             } else {
                 setError(response.error || 'Something went wrong')
                 setIsChecking(false)

@@ -20,10 +20,10 @@ interface LogWorkflowParams {
  */
 export async function logWorkflow(
     supabase: SupabaseClient,
-    params: LogWorkflowParams
+    params: LogWorkflowParams & { executionStatus?: string }
 ) {
     try {
-        const { error } = await supabase.from('workflow_logs').insert({
+        const { data, error } = await supabase.from('workflow_logs').insert({
             workflow_name: params.workflowName,
             status_code: params.statusCode,
             status_category: params.category,
@@ -31,13 +31,18 @@ export async function logWorkflow(
             details: params.details,
             user_id: params.userId,
             brand_id: params.brandId,
-            metadata: params.metadata
-        })
+            metadata: params.metadata,
+            execution_status: params.executionStatus || 'PENDING'
+        }).select().single()
 
         if (error) {
             console.error('Failed to write to workflow_logs:', error)
+            return null
         }
+
+        return data
     } catch (e) {
         console.error('Exception in logWorkflow:', e)
+        return null
     }
 }

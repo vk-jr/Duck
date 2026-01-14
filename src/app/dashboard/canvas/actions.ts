@@ -121,10 +121,22 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
             category: 'CONFIG_ERROR',
             message: 'Webhook URL not configured',
             userId: user.id,
-            brandId: activeBrandId
+            brandId: activeBrandId,
+            executionStatus: 'ERROR'
         })
         return { error: 'Webhook URL not configured' }
     }
+
+    const logEntry = await logWorkflow(adminSupabase, {
+        workflowName: 'canvas_processing',
+        statusCode: 202,
+        category: 'SUCCESS',
+        message: 'Canvas workflow initiated',
+        userId: user.id,
+        brandId: activeBrandId,
+        metadata: { image_id: imageId, layer_id: layer.id },
+        executionStatus: 'PENDING'
+    })
 
     try {
         const response = await fetch(webhookUrl, {
@@ -137,6 +149,7 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
                 brand_id: activeBrandId,
                 image_id: imageId,
                 layer_id: layer.id, // N8N can now update this specific layer row
+                log_id: logEntry?.id, // Pass Log ID
                 text_layer: text,
                 image_url: imageUrl, // Send original URL as requested
                 metadata: {
@@ -162,21 +175,14 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
             details: err,
             userId: user.id,
             brandId: activeBrandId,
-            metadata: { image_id: imageId, layer_id: layer.id }
+            metadata: { image_id: imageId, layer_id: layer.id },
+            executionStatus: 'ERROR'
         })
         return { error: 'Failed to trigger processing engine.' }
     }
 
-    // Success Log
-    await logWorkflow(adminSupabase, {
-        workflowName: 'canvas_processing',
-        statusCode: 200,
-        category: 'SUCCESS',
-        message: 'Canvas workflow triggered successfully',
-        userId: user.id,
-        brandId: activeBrandId,
-        metadata: { image_id: imageId, layer_id: layer.id }
-    })
+    // Success Log - Removed to favour Pending state
+
 }
 
 export async function saveCanvasState(state: any) {
