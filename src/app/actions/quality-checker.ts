@@ -120,7 +120,7 @@ export async function createQualityCheck(formData: FormData) {
             const fileName = `${userId}/${Date.now()}.${fileExt}`
             const { data: uploadData, error: uploadError } = await supabase
                 .storage
-                .from('images')
+                .from('uploaded_images')
                 .upload(fileName, file)
 
             if (uploadError) {
@@ -130,7 +130,7 @@ export async function createQualityCheck(formData: FormData) {
 
             const { data } = supabase
                 .storage
-                .from('images')
+                .from('uploaded_images')
                 .getPublicUrl(fileName)
 
             publicUrl = data.publicUrl
