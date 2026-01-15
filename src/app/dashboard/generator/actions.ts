@@ -6,7 +6,7 @@ import { logWorkflow } from '@/lib/workflow-logger'
 import { createClient as createBaseClient } from '@/lib/supabase/client'
 
 export async function getWorkflowLog(id: string) {
-    const supabase = await createBaseClient()
+    const supabase = await createClient()
     const { data, error } = await supabase
         .from('workflow_logs')
         .select('*')

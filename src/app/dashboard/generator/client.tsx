@@ -36,13 +36,32 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                 const log = await getWorkflowLog(currentLogId)
                 if (log) {
                     const status = log.execution_status
-                    // Pending
-                    if (status === 'PENDING') {
-                        // continue
+
+                    // Success: Status is 200
+                    if (String(status) === '200') {
+                        // Log says 200. Now Check Image Entity.
+                        if (currentImageId) {
+                            const { data } = await supabase
+                                .from('generated_images')
+                                .select('image_url')
+                                .eq('id', currentImageId)
+                                .single()
+
+                            if (data && data.image_url) {
+                                setGeneratedImageUrl(data.image_url)
+                                setIsGenerating(false)
+                                setCurrentImageId(null)
+                                setCurrentLogId(null)
+                                router.refresh()
+                                return true // Done
+                            }
+                        }
+                        return false // Log is 200, but Image not ready yet. Keep polling.
                     }
-                    // Success
-                    else if (status === '200') {
-                        // success, check entity below
+                    // Pending
+                    else if (status === 'PENDING') {
+                        // continue polling
+                        return false
                     }
                     // Error (Any other status)
                     else {
@@ -64,32 +83,8 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                 }
             }
 
-            // 2. Check Entity Status
-            if (currentImageId) {
-                const { data } = await supabase
-                    .from('generated_images')
-                    .select('status, image_url, processing_code, error_message')
-                    .eq('id', currentImageId)
-                    .single()
-
-                if (data) {
-                    if (data.image_url && (data.processing_code === 200 || data.status?.toLowerCase() === 'generated')) {
-                        setGeneratedImageUrl(data.image_url)
-                        setIsGenerating(false)
-                        setCurrentImageId(null)
-                        setCurrentLogId(null)
-                        router.refresh()
-                        return true // Done
-                    } else if ((data.processing_code && data.processing_code >= 400) || data.status === 'failed') {
-                        setIsGenerating(false)
-                        setCurrentImageId(null)
-                        setCurrentLogId(null)
-                        alert(data.error_message || 'Generation failed.')
-                        return true // Done
-                    }
-                }
-            }
-            return false // Keep waiting
+            // Fallback: If no log ID or log not found, keep waiting (or handle error? assume waiting)
+            return false
         }
 
         // 1. Check Immediately
