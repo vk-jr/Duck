@@ -184,8 +184,8 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
                 created_by: user.id,
                 brand_id: dbBrandId,
                 image_url: imageUrl,
-                user_prompt: 'Imported Asset', // Generic label for imported/promoted assets
-                status: 'Generated'
+                user_prompt: isNewUpload ? 'Uploaded Image' : 'Reference Asset',
+                status: isNewUpload ? 'Generated' : 'Shadow'
             })
 
         if (genImageError) {
