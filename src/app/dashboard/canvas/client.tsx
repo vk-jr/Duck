@@ -551,7 +551,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                         onExit={() => {
                             setEditModeData(null)
                             setActiveLayerId(null)
-                            setActiveRectangle(null)
+                            // Keep activeRectangle so user can use it in sidebar
                         }}
                     />
                 )}
@@ -728,6 +728,7 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                         activeLayerId={activeLayerId}
                         onLayerSelect={setActiveLayerId}
                         activeRectangle={activeRectangle}
+                        onDraw={() => selectedNode && onNodeEdit(selectedNode.id)}
                     />
                 </div>
             </div>

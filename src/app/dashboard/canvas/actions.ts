@@ -166,10 +166,17 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
         dbImageId = crypto.randomUUID()
         isNewUpload = true
     }
+    // Ensure parent generated_image exists (FK link)
+    // Quality Checks / Brand Images are valid UUIDs but not in generated_images table.
+    // We must promote them to generated_images to attach a layer.
+    const { data: existingGenImage } = await supabase
+        .from('generated_images')
+        .select('id')
+        .eq('id', dbImageId)
+        .single()
 
-    // If it's a new upload, we MUST create the parent 'generated_images' record first
-    // to satisfy the foreign key constraint on image_layers.
-    if (isNewUpload) {
+    if (!existingGenImage) {
+        // Create parent record
         const { error: genImageError } = await supabase
             .from('generated_images')
             .insert({
@@ -177,8 +184,8 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
                 created_by: user.id,
                 brand_id: dbBrandId,
                 image_url: imageUrl,
-                user_prompt: 'Uploaded Image', // Corrected column name from 'prompt' to 'user_prompt'
-                status: 'Generated' // Mark as Generated so it appears in assets if needed
+                user_prompt: 'Imported Asset', // Generic label for imported/promoted assets
+                status: 'Generated'
             })
 
         if (genImageError) {

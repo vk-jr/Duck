@@ -133,7 +133,12 @@ export default function CanvasSidebar({
                                 )}
 
                                 <button
-                                    onClick={() => onDraw?.()}
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        onDraw?.()
+                                    }}
                                     className="w-full bg-secondary hover:bg-secondary/80 text-foreground border border-primary/20 text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                                 >
                                     <GripVertical className="w-3 h-3" />
