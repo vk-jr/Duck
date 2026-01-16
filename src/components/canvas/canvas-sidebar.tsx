@@ -1,4 +1,4 @@
-import { GripVertical, Layers, Wand2 } from 'lucide-react'
+import { GripVertical, Layers, Wand2, Download } from 'lucide-react'
 import { Node } from 'reactflow'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -315,7 +315,18 @@ export default function CanvasSidebar({
                                         <p className="text-[10px] text-white/80 truncate">{layer.metadata?.prompt || 'Generated Layer'}</p>
                                     </div>
                                     {!editModeLayers && (
-                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    window.open(layer.layer_url, '_blank')
+                                                }}
+                                                className="p-1.5 bg-white/20 hover:bg-white/40 rounded-lg text-white transition-colors"
+                                                title="Download Layer"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </button>
                                             <GripVertical className="text-white w-6 h-6" />
                                         </div>
                                     )}
