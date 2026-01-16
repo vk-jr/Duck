@@ -229,13 +229,7 @@ export default function GeneratorClient({ brands = [] }: { brands: Brand[] }) {
                                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none group-hover:text-primary transition-colors" />
                             </div>
 
-                            <Link
-                                href="/dashboard/brand/create"
-                                className="w-14 bg-background border border-border rounded-2xl text-foreground hover:bg-muted hover:border-primary/30 transition-all flex items-center justify-center group shadow-sm"
-                                title="New Brand"
-                            >
-                                <Plus className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                            </Link>
+
                         </div>
 
                         <button
