@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Filter, Download, ExternalLink } from 'lucide-react'
+import { Filter, Download, ExternalLink, Trash2 } from 'lucide-react'
+import { deleteAsset } from './actions'
 import { cn } from '@/lib/utils'
 
 interface Brand {
@@ -62,6 +63,18 @@ export default function GalleryClient({
         }
     }
 
+    const handleDelete = async (e: React.MouseEvent, id: string, type: 'image' | 'layer') => {
+        e.preventDefault() // Prevent opening detail view if that exists
+        if (!confirm('Are you sure you want to delete this asset? This action cannot be undone.')) {
+            return
+        }
+
+        const result = await deleteAsset(id, type)
+        if (result.error) {
+            alert(`Failed to delete: ${result.error}`)
+        }
+    }
+
     // Helper to render appropriate grid content
     const renderContent = () => {
         if (viewMode === 'images') {
@@ -95,6 +108,13 @@ export default function GalleryClient({
                                             {brands.find(b => b.id === image.brand_id)?.name || 'Unknown Brand'}
                                         </span>
                                         <div className="flex gap-2">
+                                            <button
+                                                onClick={(e) => handleDelete(e, image.id, 'image')}
+                                                className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-100 text-xs rounded-lg backdrop-blur-sm transition-colors border border-red-500/30 flex items-center gap-1.5"
+                                                title="Delete Image"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
                                             <button
                                                 onClick={(e) => handleDownload(e, image.image_url, image.user_prompt)}
                                                 className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg backdrop-blur-sm transition-colors border border-white/10 flex items-center gap-1.5"
@@ -156,6 +176,13 @@ export default function GalleryClient({
                                 </p>
                                 <div className="flex gap-2 justify-end items-end">
                                     <div className="flex gap-2">
+                                        <button
+                                            onClick={(e) => handleDelete(e, layer.id, 'layer')}
+                                            className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-100 text-xs rounded-lg backdrop-blur-sm transition-colors border border-red-500/30 flex items-center gap-1.5"
+                                            title="Delete Layer"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
                                         <button
                                             onClick={(e) => handleDownload(e, layer.layer_url, layer.metadata?.prompt || 'layer')}
                                             className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg backdrop-blur-sm transition-colors border border-white/10 flex items-center gap-1.5"
