@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
 interface ProcessCanvasParams {
     imageId: string
@@ -77,34 +78,133 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
     }
 
     if (!activeBrandId) {
-        await logWorkflow(adminSupabase, {
-            workflowName: 'canvas_processing',
-            statusCode: 404,
-            category: 'CLIENT_ERROR',
-            message: 'Could not resolve Brand ID',
-            userId: user.id
-        })
-        return { error: 'Could not resolve Brand ID. Please Create a Brand first.' }
+        // Fallback: Try to get ANY brand from the brands table to satisfy the NOT NULL constraint on generated_images
+        const { data: anyBrand } = await supabase
+            .from('brands')
+            .select('id')
+            .limit(1)
+            .single()
+
+        if (anyBrand) {
+            activeBrandId = anyBrand.id
+        }
     }
 
-    // 2. Create Layer Entry in DB
-    // We assume 'image_layers' table exists and links to 'generated_images' via 'generated_image_id' or similar.
-    // Based on user request, we store the original URL in metadata.
+    if (!activeBrandId) {
+        // Log a warning but proceed, as Brand ID is no longer mandatory
+        console.warn('Proceeding without Brand ID for canvas processing')
+
+        // Ensure activeBrandId is null if undefined, for DB compatibility if needed
+        // (though undefined usually works if optional in input, but explicit null is safer for SQL)
+        // activeBrandId is already let variable.
+    }
+
+    // 2. Handle Data URL (Upload to Storage if needed)
+    // If exact flow: Upload Image -> Data URL -> Canvas -> Segment -> (Here) -> Storage -> Webhook
+    if (imageUrl.startsWith('data:image')) {
+        try {
+            // Extract content type and base64 data
+            // data:image/png;base64,.....
+            const matches = imageUrl.match(/^data:image\/([a-zA-Z+]+);base64,(.+)$/)
+            if (matches && matches.length === 3) {
+                const fileExt = matches[1]
+                const base64Data = matches[2]
+                const buffer = Buffer.from(base64Data, 'base64')
+
+                const fileName = `${user.id}/${Date.now()}_canvas_upload.${fileExt}`
+
+                // Upload to 'uploaded_images' bucket (same as Quality Checker)
+                const { error: uploadError } = await supabase
+                    .storage
+                    .from('uploaded_images')
+                    .upload(fileName, buffer, {
+                        contentType: `image/${fileExt}`,
+                        upsert: true
+                    })
+
+                if (uploadError) {
+                    console.error('Canvas Upload Error:', uploadError)
+                    // Fallback? If upload fails, we might hard fail or just try processing (which might fail if N8N can't reach Data URL)
+                    // Let's log and error out to be safe
+                    await logWorkflow(adminSupabase, {
+                        workflowName: 'canvas_processing',
+                        statusCode: 500,
+                        category: 'STORAGE_ERROR',
+                        message: 'Failed to upload canvas image to storage',
+                        details: uploadError,
+                        userId: user.id
+                    })
+                    return { error: 'Failed to upload image to storage.' }
+                }
+
+                // Get Public URL
+                const { data: publicUrlData } = supabase
+                    .storage
+                    .from('uploaded_images')
+                    .getPublicUrl(fileName)
+
+                // UPDATE imageUrl variable to the new remote URL
+                imageUrl = publicUrlData.publicUrl
+            }
+        } catch (e) {
+            console.error('Data URL Processing Error:', e)
+            return { error: 'Failed to process uploaded image.' }
+        }
+    }
+
+    // 4. Prepare for DB Insert
+    // Ensure Brand ID is null if empty string (fixes UUID mismatch "")
+    const dbBrandId = activeBrandId || null
+
+    // Ensure generated_image_id is a valid UUID
+    // If imageId comes from an uploaded node (e.g. "upload-123"), it won't be a UUID.
+    // User requested to "generate a random one" in this case.
+    let dbImageId = imageId
+    let isNewUpload = false
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(imageId)) {
+        dbImageId = crypto.randomUUID()
+        isNewUpload = true
+    }
+
+    // If it's a new upload, we MUST create the parent 'generated_images' record first
+    // to satisfy the foreign key constraint on image_layers.
+    if (isNewUpload) {
+        const { error: genImageError } = await supabase
+            .from('generated_images')
+            .insert({
+                id: dbImageId,
+                created_by: user.id,
+                brand_id: dbBrandId,
+                image_url: imageUrl,
+                user_prompt: 'Uploaded Image', // Corrected column name from 'prompt' to 'user_prompt'
+                status: 'Generated' // Mark as Generated so it appears in assets if needed
+            })
+
+        if (genImageError) {
+            console.error('Failed to create parent generated_image:', genImageError)
+            return { error: `Failed to register uploaded image: ${genImageError.message}` }
+        }
+    }
+
+    // 5. Create Layer Entry in DB
+    // We update the type definition on insert to allow nullable brand_id if not already updated in types
     const { data: layer, error: dbError } = await supabase
         .from('image_layers')
         .insert({
-            generated_image_id: imageId,
-            user_id: user.id, // Saving User ID as requested
-            brand_id: activeBrandId,
+            generated_image_id: dbImageId, // Use the proper UUID
+            user_id: user.id,
+            brand_id: dbBrandId, // Use the nullable brand ID
             layer_type: type,
-            layer_url: imageUrl, // Initializing with original URL to satisfy NOT NULL constraint
-            status: 'generating', // Setting initial status
+            layer_url: imageUrl,
+            status: 'generating',
             metadata: {
                 original_image_url: imageUrl,
                 source: 'canvas_segmentation',
                 prompt: text,
-                rectangle: rectangle, // Store rectangle in metadata
-                type: type, // Store type in metadata
+                rectangle: rectangle,
+                type: type,
+                original_node_id: imageId // Keep track of the canvas node ID
             }
         })
         .select()
@@ -119,12 +219,12 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
             message: 'Layer Creation Error',
             details: dbError,
             userId: user.id,
-            brandId: activeBrandId
+            brandId: dbBrandId || undefined
         })
         return { error: `DB Error: ${dbError.message}. Details: ${dbError.details || ''}` }
     }
 
-    // 3. Call N8N Webhook
+    // 6. Call N8N Webhook
     const webhookUrl = process.env.NEXT_PUBLIC_N8N_WEBHOOK_GENERATION
     if (!webhookUrl) {
         await logWorkflow(adminSupabase, {
@@ -133,7 +233,7 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
             category: 'CONFIG_ERROR',
             message: 'Webhook URL not configured',
             userId: user.id,
-            brandId: activeBrandId,
+            brandId: dbBrandId || undefined,
             executionStatus: 'ERROR'
         })
         return { error: 'Webhook URL not configured' }
@@ -145,8 +245,8 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
         category: 'SUCCESS',
         message: 'Canvas workflow initiated',
         userId: user.id,
-        brandId: activeBrandId,
-        metadata: { image_id: imageId, layer_id: layer.id },
+        brandId: dbBrandId || undefined,
+        metadata: { image_id: dbImageId, layer_id: layer.id },
         executionStatus: 'PENDING'
     })
 
@@ -158,17 +258,18 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
             },
             body: JSON.stringify({
                 user_id: user.id,
-                brand_id: activeBrandId,
-                image_id: imageId,
-                layer_id: layer.id, // N8N can now update this specific layer row
-                log_id: logEntry?.id, // Pass Log ID
+                brand_id: dbBrandId, // Send null if empty
+                image_id: dbImageId, // Send the valid UUID
+                layer_id: layer.id,
+                log_id: logEntry?.id,
                 text_layer: text,
-                image_url: imageUrl, // Send original URL as requested
+                image_url: imageUrl,
                 metadata: {
                     type: type,
                     original_url: imageUrl,
-                    rectangle: rectangle, // Send rectangle to webhook
-                    log_id: logEntry?.id
+                    rectangle: rectangle,
+                    log_id: logEntry?.id,
+                    node_id: imageId // Pass original node ID just in case
                 }
             })
         })
@@ -177,6 +278,7 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
             throw new Error(`Webhook failed: ${response.statusText}`)
         }
 
+        revalidatePath('/dashboard/canvas')
         return { success: true, layerId: layer.id, logId: logEntry?.id }
     } catch (err) {
         console.error('Canvas Webhook Error:', err)

@@ -596,8 +596,31 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                                     className="hidden"
                                     accept="image/*"
                                     onChange={(e) => {
-                                        // Simple file upload handler if needed here, pushing to drag handler logic essentially
-                                        // For now just keep it visual or basic
+                                        if (e.target.files && e.target.files.length > 0) {
+                                            const file = e.target.files[0]
+                                            const reader = new FileReader()
+                                            reader.onload = (event) => {
+                                                const src = event.target?.result as string
+                                                // Place in center of current view if possible, or default offset
+                                                // We can use getViewport to find center
+                                                const { x, y, zoom } = getViewport()
+                                                // Approximate center of container - we can't easily get container dims here without ref 
+                                                // but we can just use -x/zoom + offset
+
+                                                // Simpler: Just place at valid coords, maybe slightly offset from 0,0 or current viewport center
+                                                const centerX = -x / zoom + 100
+                                                const centerY = -y / zoom + 100
+
+                                                const newNode: Node = {
+                                                    id: `upload-${Date.now()}`,
+                                                    type: 'imageNode',
+                                                    position: { x: centerX, y: centerY },
+                                                    data: { label: file.name, src, type: 'upload' },
+                                                }
+                                                setNodes((nds) => nds.concat(newNode))
+                                            }
+                                            reader.readAsDataURL(file)
+                                        }
                                     }}
                                 />
                             </label>
