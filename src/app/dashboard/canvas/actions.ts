@@ -129,7 +129,7 @@ export async function processCanvasImage({ imageId, imageUrl, brandId, text, typ
                     await logWorkflow(adminSupabase, {
                         workflowName: 'canvas_processing',
                         statusCode: 500,
-                        category: 'STORAGE_ERROR',
+                        category: 'API_ERROR',
                         message: 'Failed to upload canvas image to storage',
                         details: uploadError,
                         userId: user.id
