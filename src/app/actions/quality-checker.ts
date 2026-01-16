@@ -72,24 +72,68 @@ export async function getUserAssets() {
     if (!user) return { images: [], layers: [] }
 
     // Fetch Generated Images
-    const { data: images } = await supabase
+    const { data: genImages } = await supabase
         .from('generated_images')
         .select('*')
         .eq('created_by', user.id)
-        .eq('status', 'Generated') // Case sensitive? 'generated' or 'Generated'. Checks previous code used 'Generated' in Gallery page, but actions used 'generating'. Assuming 'generated' or 'Generated'.
+        .eq('status', 'Generated')
         .order('created_at', { ascending: false })
         .limit(20)
+
+    // Fetch Quality Check Uploads (treat as assets)
+    const { data: checkImages } = await supabase
+        .from('quality_checks')
+        .select('id, image_url, brand_id, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(50) // Increased limit to find uniques
+
+    // Deduplicate checks by image_url
+    const uniqueCheckImages = checkImages?.filter((check, index, self) =>
+        index === self.findIndex((t) => t.image_url === check.image_url)
+    ) || []
+
+    // Fetch Brand Reference Images (Guidelines)
+    const { data: brandRefImages } = await supabase
+        .from('brands')
+        .select('id, name, reference_image_url, created_at')
+        .not('reference_image_url', 'is', null) // Filter out brands without reference image
+
+    // Normalize Quality Checks
+    const formattedCheckImages = uniqueCheckImages.map(check => ({
+        id: check.id,
+        image_url: check.image_url,
+        brand_id: check.brand_id,
+        user_prompt: 'Quality Check Upload', // Label for these assets
+        status: 'Generated',
+        created_at: check.created_at,
+        created_by: user.id
+    }))
+
+    // Normalize Brand Guidelines
+    const formattedBrandImages = (brandRefImages || []).map(brand => ({
+        id: brand.id, // Use brand ID as the asset ID
+        image_url: brand.reference_image_url,
+        brand_id: brand.id,
+        user_prompt: `Brand Guidelines (${brand.name})`,
+        status: 'Generated',
+        created_at: brand.created_at || new Date().toISOString(),
+        created_by: user.id
+    }))
+
+    // Combine and Sort
+    const allImages = [...(genImages || []), ...formattedCheckImages, ...formattedBrandImages]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
     // Fetch Image Layers
     const { data: layers } = await supabase
         .from('image_layers')
         .select('*')
         .eq('user_id', user.id)
-        // .eq('status', 'generated') // Simplified check
         .order('created_at', { ascending: false })
         .limit(20)
 
-    return { images: images || [], layers: layers || [] }
+    return { images: allImages, layers: layers || [] }
 }
 
 export async function createQualityCheck(formData: FormData) {
@@ -134,6 +178,8 @@ export async function createQualityCheck(formData: FormData) {
                 .getPublicUrl(fileName)
 
             publicUrl = data.publicUrl
+
+
         }
 
         // Use service role for logging
