@@ -155,6 +155,51 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
         }, 2000)
     }, [nodes, edges, getViewport])
 
+    const handleManualSave = async () => {
+        const viewport = getViewport()
+
+        // Sanitize nodes to remove non-serializable properties
+        const sanitizedNodes = nodes.map(node => ({
+            id: node.id,
+            type: node.type,
+            position: node.position,
+            data: node.data,
+            width: node.width,
+            height: node.height,
+            selected: node.selected,
+            positionAbsolute: node.positionAbsolute,
+            dragging: node.dragging
+        }))
+
+        const sanitizedEdges = edges.map(edge => ({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: edge.sourceHandle,
+            targetHandle: edge.targetHandle,
+            animated: edge.animated,
+            style: edge.style,
+            markerEnd: edge.markerEnd,
+            type: edge.type,
+            data: edge.data,
+            selected: edge.selected
+        }))
+
+        const state = {
+            nodes: JSON.parse(JSON.stringify(sanitizedNodes)),
+            edges: JSON.parse(JSON.stringify(sanitizedEdges)),
+            viewport
+        }
+
+        const result = await saveCanvasState(state)
+        if (result.success) {
+            setLastSaved(new Date())
+            alert('Canvas Saved Successfully!')
+        } else {
+            alert('Failed to save canvas: ' + result.error)
+        }
+    }
+
     // Trigger save on changes
     useEffect(() => {
         triggerSave()
@@ -652,7 +697,10 @@ function CanvasContent({ images, layers }: { images: GeneratedImage[], layers: I
                         >
                             {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
                         </button>
-                        <button className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm">
+                        <button
+                            onClick={handleManualSave}
+                            className="flex items-center gap-2 bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg shadow-lg hover:scale-105 transition-transform text-sm"
+                        >
                             <Save className="w-4 h-4" /> Save Board
                         </button>
                         <button

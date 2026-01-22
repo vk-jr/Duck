@@ -17,7 +17,8 @@ import {
     ChevronLeft,
     ChevronRight,
     ScanEye,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Scissors
 } from 'lucide-react'
 
 const navItems = [
@@ -25,6 +26,7 @@ const navItems = [
     { name: 'Generator', href: '/dashboard/generator', icon: Sparkles },
     { name: 'Canvas', href: '/dashboard/canvas', icon: Palette },
     { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon },
+    { name: 'Segment', href: '/dashboard/segment', icon: Scissors },
     { name: 'Quality Checker', href: '/dashboard/quality-checker', icon: ScanEye },
     { name: 'Brands', href: '/dashboard/brand/create', icon: Briefcase },
     { name: 'Settings', href: '/dashboard/settings', icon: Sliders },
