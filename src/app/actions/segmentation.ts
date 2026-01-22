@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, unstable_noStore as noStore } from 'next/cache'
 import { logWorkflow } from '@/lib/workflow-logger'
 
 export async function createSegmentation(formData: FormData) {
@@ -134,6 +134,7 @@ export async function createSegmentation(formData: FormData) {
 }
 
 export async function getSegmentations() {
+    noStore()
     const supabase = await createClient()
 
     try {
@@ -160,6 +161,7 @@ export async function getSegmentations() {
 }
 
 export async function getSegmentation(id: string) {
+    noStore()
     const supabase = await createClient()
 
     try {
