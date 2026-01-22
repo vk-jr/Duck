@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, Scissors, Loader2, Image as ImageIcon, Layers, AlertCircle, Download, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { createSegmentation, getSegmentations, getSegmentation, getWorkflowLog } from '@/app/actions/segmentation' // Assuming logic is similar
+import { createSegmentation, getSegmentations, getSegmentation } from '@/app/actions/segmentation' // Assuming logic is similar
 import { getWorkflowLog as fetchWorkflowLog } from '@/app/actions/quality-checker' // Reuse existing if needed or move to shared
 
 // Duplicate simple logger fetch if not exported from segmentation action yet
