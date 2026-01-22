@@ -166,7 +166,12 @@ export default function SegmentationPage() {
         const imageUrl = e.dataTransfer.getData('text/plain')
         if (imageUrl) {
             try {
-                // For URL drops, we fetch and create a File object
+                // OPTIMIZATION: Set preview immediately for perceived speed
+                setPreviewUrl(imageUrl)
+                setError(null)
+                setActiveResult(null)
+
+                // Fetch in background for the File object
                 const response = await fetch(imageUrl)
                 const blob = await response.blob()
                 // Try to guess extension from mime type or url
@@ -176,12 +181,10 @@ export default function SegmentationPage() {
                 const droppedFile = new File([blob], filename, { type: mimeType })
 
                 setFile(droppedFile)
-                setPreviewUrl(imageUrl) // Use original URL for preview to save memory/speed
-                setError(null)
-                setActiveResult(null)
             } catch (err) {
                 console.error("Failed to load dropped image", err)
                 setError("Failed to load dropped image. Please try uploading a file directly.")
+                setPreviewUrl(null) // Revert if failed
             }
         }
     }
@@ -201,7 +204,7 @@ export default function SegmentationPage() {
         if (file) {
             formData.append('image', file)
         } else {
-            setError('Please upload an image file.')
+            setError('Please wait for image to finish loading...')
             setIsProcessing(false)
             return
         }
@@ -220,10 +223,13 @@ export default function SegmentationPage() {
     }
 
     return (
-        <div className="flex bg-background h-[calc(100vh-8rem)] relative gap-4">
+        <div className="flex bg-background h-[calc(100vh-8rem)] relative gap-4 overflow-hidden">
 
             {/* Main Content Area */}
-            <div className="flex-1 flex gap-6 min-w-0 pr-2">
+            <motion.div
+                layout
+                className="flex-1 flex gap-6 min-w-0 pr-2 transition-none"
+            >
                 {/* Left Panel - Input */}
                 <div className="w-1/2 flex flex-col gap-6">
                     <div>
@@ -280,7 +286,9 @@ export default function SegmentationPage() {
 
                         {(previewUrl) ? (
                             <div className="relative w-full h-full flex items-center justify-center">
-                                <img
+                                <motion.img
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
                                     src={previewUrl}
                                     alt="Preview"
                                     className="max-h-full max-w-full object-contain rounded-xl shadow-2xl"
@@ -504,14 +512,15 @@ export default function SegmentationPage() {
                         </div>
                     )}
                 </div>
-            </div>
+            </motion.div>
 
             {/* Assets Sidebar (Collapsible) */}
             <motion.div
                 initial={{ width: 320 }}
                 animate={{ width: isSidebarOpen ? 320 : 0 }}
+                transition={{ type: "spring", bounce: 0, duration: 0.4 }}
                 className={cn(
-                    "border-l border-border/50 bg-background/95 backdrop-blur-2xl flex flex-col shadow-2xl overflow-hidden absolute right-0 top-0 bottom-0 h-full z-30 transition-all",
+                    "border-l border-border/50 bg-background/95 backdrop-blur-2xl flex flex-col shadow-2xl overflow-hidden absolute right-0 top-0 bottom-0 h-full z-30",
                     !isSidebarOpen && "border-none pointer-events-none"
                 )}
             >
