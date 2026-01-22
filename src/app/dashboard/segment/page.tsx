@@ -231,7 +231,7 @@ export default function SegmentationPage() {
                 className="flex-1 flex gap-6 min-w-0 pr-2 transition-none"
             >
                 {/* Left Panel - Input */}
-                <div className="w-1/2 flex flex-col gap-6">
+                <div className="w-1/2 flex flex-col gap-6 h-full justify-center">
                     <div>
                         <h1 className="text-3xl font-serif font-bold tracking-tight mb-2">Image Segmentation</h1>
                         <p className="text-muted-foreground">Split your image into multiple layers/segments.</p>
@@ -271,7 +271,7 @@ export default function SegmentationPage() {
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         className={cn(
-                            "flex-1 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-all duration-300 relative overflow-hidden group",
+                            "border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-all duration-300 relative overflow-hidden group aspect-square max-h-[500px]",
                             (isDragOver || file)
                                 ? "border-primary bg-primary/5 shadow-inner"
                                 : "border-border hover:border-primary/50 hover:bg-accent/30"
