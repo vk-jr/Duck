@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, Scissors, Loader2, Image as ImageIcon, Layers, AlertCircle, Download, CheckCircle } from 'lucide-react'
+import { Upload, Scissors, Loader2, Image as ImageIcon, Layers, AlertCircle, Download, CheckCircle, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createSegmentation, getSegmentations, getSegmentation } from '@/app/actions/segmentation' // Assuming logic is similar
 import { getWorkflowLog as fetchWorkflowLog } from '@/app/actions/quality-checker' // Reuse existing if needed or move to shared
@@ -255,74 +255,141 @@ export default function SegmentationPage() {
                     )}
 
                     {activeResult ? (
-                        <div className="flex flex-col h-full">
-                            <div className="flex items-center justify-between mb-6">
+                        <div className="flex flex-col h-full overflow-hidden">
+                            <div className="flex items-center justify-between flex-none mb-4">
                                 <h2 className="text-xl font-bold flex items-center gap-2">
                                     <Layers className="w-5 h-5 text-primary" />
                                     Results
                                 </h2>
-                                <span className="text-xs text-muted-foreground px-3 py-1 bg-muted rounded-full">
-                                    {activeResult.segment_count} Segments
+                                <span className={cn(
+                                    "text-xs px-3 py-1 rounded-full font-medium border",
+                                    (activeResult.status === 'COMPLETED' || activeResult.status === 'SUCCESS') ? "bg-green-500/10 text-green-500 border-green-500/20" :
+                                        (activeResult.status === 'FAILED' || activeResult.status === 'ERROR') ? "bg-red-500/10 text-red-500 border-red-500/20" :
+                                            "bg-primary/10 text-primary border-primary/20 animate-pulse"
+                                )}>
+                                    {activeResult.status}
                                 </span>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 overflow-y-auto pr-2 pb-4">
-                                {/* Original Input */}
-                                <div className="col-span-2 relative group rounded-2xl overflow-hidden border border-border/50">
-                                    <div className="absolute top-3 left-3 px-2 py-1 bg-black/60 backdrop-blur text-white text-[10px] uppercase font-bold rounded-md z-10">Original</div>
-                                    <img src={activeResult.input_image_url} alt="Original" className="w-full h-48 object-cover opacity-80" />
+                            <div className="flex-1 overflow-y-auto pr-2 space-y-8 custom-scrollbar pb-6">
+                                {/* Original Input Section */}
+                                <div>
+                                    <h3 className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-2">
+                                        <ImageIcon className="w-4 h-4" />
+                                        Original Input
+                                    </h3>
+                                    <div className="relative rounded-2xl overflow-hidden border border-border/50 bg-muted/20 shadow-sm group">
+                                        <img
+                                            src={activeResult.input_image_url}
+                                            alt="Original"
+                                            className="w-full h-auto max-h-[300px] object-contain mx-auto"
+                                        />
+                                        <div className="absolute inset-0 ring-1 ring-inset ring-black/10 rounded-2xl pointer-events-none" />
+                                    </div>
                                 </div>
 
-                                {/* Generated Outputs */}
-                                {activeResult.output_images && activeResult.output_images.length > 0 ? (
-                                    activeResult.output_images.map((imgUrl, idx) => (
-                                        <motion.div
-                                            key={idx}
-                                            initial={{ opacity: 0, scale: 0.9 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            className="aspect-square rounded-2xl overflow-hidden bg-muted/20 border border-border/50 relative group"
-                                        >
-                                            <div className="absolute top-3 left-3 px-2 py-1 bg-primary/80 backdrop-blur text-white text-[10px] uppercase font-bold rounded-md z-10">
-                                                Part {idx + 1}
-                                            </div>
-                                            <img src={imgUrl} alt={`Segment ${idx + 1}`} className="w-full h-full object-contain" />
+                                {/* Generated Outputs Section */}
+                                <div>
+                                    <h3 className="text-xs font-bold text-muted-foreground mb-3 uppercase tracking-wider flex items-center gap-2">
+                                        <Layers className="w-4 h-4" />
+                                        Segmented Layers ({activeResult.segment_count})
+                                    </h3>
 
-                                            <a
-                                                href={imgUrl}
-                                                download={`segment_${idx + 1}.png`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="absolute bottom-3 right-3 p-2 bg-white/20 backdrop-blur-md rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/40"
-                                            >
-                                                <Download className="w-4 h-4" />
-                                            </a>
-                                        </motion.div>
-                                    ))
-                                ) : (
-                                    ['generating', 'pending', 'processing'].includes(activeResult.status.toLowerCase()) ? (
-                                        <div className="col-span-2 py-12 flex flex-col items-center justify-center text-muted-foreground animate-pulse">
-                                            <Loader2 className="w-8 h-8 animate-spin mb-2 opacity-50" />
-                                            <p>Processing segments...</p>
-                                        </div>
-                                    ) : ['failed', 'error'].includes(activeResult.status.toLowerCase()) ? (
-                                        <div className="col-span-2 py-12 flex flex-col items-center justify-center text-destructive/80">
-                                            <AlertCircle className="w-8 h-8 mb-2 opacity-50" />
-                                            <p>Segmentation Failed</p>
+                                    {activeResult.output_images && activeResult.output_images.length > 0 ? (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                            {activeResult.output_images.map((imgUrl, idx) => (
+                                                <motion.div
+                                                    key={idx}
+                                                    initial={{ opacity: 0, y: 20 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    transition={{ delay: idx * 0.1 }}
+                                                    className="aspect-square rounded-2xl overflow-hidden bg-muted/20 border border-border/50 relative group bg-white dark:bg-black/20"
+                                                >
+                                                    {/* Pure CSS Checkerboard */}
+                                                    <div className="absolute inset-0 opacity-20"
+                                                        style={{
+                                                            backgroundImage: `linear-gradient(45deg, #808080 25%, transparent 25%), linear-gradient(-45deg, #808080 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #808080 75%), linear-gradient(-45deg, transparent 75%, #808080 75%)`,
+                                                            backgroundSize: '20px 20px',
+                                                            backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'
+                                                        }}
+                                                    />
+
+                                                    <div className="absolute top-3 left-3 z-10">
+                                                        <span className="px-2.5 py-1 bg-black/70 backdrop-blur-md text-white text-[10px] uppercase font-bold rounded-lg shadow-sm border border-white/10">
+                                                            Layer {idx + 1}
+                                                        </span>
+                                                    </div>
+
+                                                    <img
+                                                        src={imgUrl}
+                                                        alt={`Segment ${idx + 1}`}
+                                                        className="w-full h-full object-contain relative z-0 p-2"
+                                                    />
+
+                                                    {/* Hover Actions */}
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center gap-3 backdrop-blur-[2px]">
+                                                        <a
+                                                            href={imgUrl}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="p-3 bg-white text-black rounded-full hover:scale-110 transition-transform shadow-xl"
+                                                            title="Open Full Size"
+                                                        >
+                                                            <ExternalLink className="w-5 h-5" />
+                                                        </a>
+                                                        <a
+                                                            href={imgUrl}
+                                                            download={`segment_${idx + 1}.png`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="p-3 bg-primary text-primary-foreground rounded-full hover:scale-110 transition-transform shadow-xl"
+                                                            title="Download"
+                                                        >
+                                                            <Download className="w-5 h-5" />
+                                                        </a>
+                                                    </div>
+                                                </motion.div>
+                                            ))}
                                         </div>
                                     ) : (
-                                        <div className="col-span-2 py-12 flex flex-col items-center justify-center text-muted-foreground opacity-50">
-                                            <Layers className="w-8 h-8 mb-2" />
-                                            <p>No segments found</p>
+                                        <div className="w-full py-12 rounded-2xl border-2 border-dashed border-border/50 flex flex-col items-center justify-center text-muted-foreground bg-muted/5">
+                                            {['generating', 'pending', 'processing'].includes(activeResult.status.toLowerCase()) ? (
+                                                <>
+                                                    <div className="relative">
+                                                        <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+                                                        <div className="absolute inset-0 blur-xl bg-primary/20 rounded-full animate-pulse" />
+                                                    </div>
+                                                    <p className="font-medium animate-pulse">Processing your image...</p>
+                                                    <p className="text-xs mt-2 opacity-70">This usually takes 10-20 seconds</p>
+                                                </>
+                                            ) : ['failed', 'error', 'failed_config'].includes(activeResult.status.toLowerCase()) ? (
+                                                <>
+                                                    <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-4">
+                                                        <AlertCircle className="w-6 h-6" />
+                                                    </div>
+                                                    <p className="font-medium text-destructive">Processing Failed</p>
+                                                    <p className="text-xs mt-2 opacity-70 max-w-[200px] text-center">
+                                                        {activeResult.status === 'failed_config' ? 'Configuration Error' : 'Could not generate segments. Please try again.'}
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Layers className="w-10 h-10 mb-3 opacity-30" />
+                                                    <p>Waiting for results...</p>
+                                                </>
+                                            )}
                                         </div>
-                                    )
-                                )}
+                                    )}
+                                </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground opacity-30">
-                            <ImageIcon className="w-24 h-24 mb-6 stroke-1" />
-                            <p className="text-lg font-medium">No results to show</p>
-                            <p className="text-sm">Upload an image to start</p>
+                        <div className="flex-1 flex flex-col items-center justify-center text-center text-muted-foreground opacity-30 select-none">
+                            <div className="w-32 h-32 bg-muted/50 rounded-full flex items-center justify-center mb-6">
+                                <ImageIcon className="w-16 h-16 stroke-[1.5]" />
+                            </div>
+                            <p className="text-xl font-medium">No Image Selected</p>
+                            <p className="text-sm mt-2 max-w-[240px]">Upload an image or select one from history to view results</p>
                         </div>
                     )}
                 </div>
