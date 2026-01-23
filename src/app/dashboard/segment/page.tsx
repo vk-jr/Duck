@@ -33,6 +33,7 @@ export default function SegmentationPage() {
     const [currentSegmentationId, setCurrentSegmentationId] = useState<string | null>(null)
     const [history, setHistory] = useState<Segmentation[]>([])
     const [activeResult, setActiveResult] = useState<Segmentation | null>(null)
+    const [downloadingLayers, setDownloadingLayers] = useState<Record<number, boolean>>({})
 
     // Sidebar & Assets State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true)
@@ -219,6 +220,32 @@ export default function SegmentationPage() {
         } else {
             setError(response.error || 'Failed to start segmentation')
             setIsProcessing(false)
+        }
+    }
+
+    const handleDownload = async (url: string, filename: string, idx: number) => {
+        setDownloadingLayers(prev => ({ ...prev, [idx]: true }))
+        try {
+            const response = await fetch(url)
+            const blob = await response.blob()
+            const blobUrl = window.URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = blobUrl
+            link.download = filename
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            window.URL.revokeObjectURL(blobUrl)
+        } catch (error) {
+            console.error('Download failed:', error)
+            // Fallback: just open in new tab if programmatic download fails
+            window.open(url, '_blank')
+        } finally {
+            setDownloadingLayers(prev => {
+                const next = { ...prev }
+                delete next[idx]
+                return next
+            })
         }
     }
 
@@ -434,16 +461,21 @@ export default function SegmentationPage() {
                                                             >
                                                                 <ExternalLink className="w-5 h-5" />
                                                             </a>
-                                                            <a
-                                                                href={imgUrl}
-                                                                download={`segment_${idx + 1}.png`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="p-3 bg-primary text-primary-foreground rounded-full hover:scale-110 transition-transform shadow-xl"
+                                                            <button
+                                                                onClick={() => handleDownload(imgUrl, `segment_${idx + 1}.png`, idx)}
+                                                                disabled={downloadingLayers[idx]}
+                                                                className={cn(
+                                                                    "p-3 bg-primary text-primary-foreground rounded-full hover:scale-110 transition-transform shadow-xl disabled:opacity-70 disabled:scale-100 disabled:cursor-wait",
+                                                                    downloadingLayers[idx] && "animate-pulse"
+                                                                )}
                                                                 title="Download"
                                                             >
-                                                                <Download className="w-5 h-5" />
-                                                            </a>
+                                                                {downloadingLayers[idx] ? (
+                                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                                ) : (
+                                                                    <Download className="w-5 h-5" />
+                                                                )}
+                                                            </button>
                                                         </div>
                                                     </motion.div>
                                                 ))}
